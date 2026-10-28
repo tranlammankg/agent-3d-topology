@@ -1,0 +1,32 @@
+services:
+  agent-3d-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agent-3d-topology
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3300}:3300"
+    environment:
+      - PORT=3300
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
+      - MASTER_API_KEY=${MASTER_API_KEY:-}
+      - REQUIRE_VIEW_TOKEN=${REQUIRE_VIEW_TOKEN:-true}
+      - MAX_SESSIONS=${MAX_SESSIONS:-200}
+      - SESSION_TTL_HOURS=${SESSION_TTL_HOURS:-24}
+      - DEFAULT_LANG=${DEFAULT_LANG:-vi}
+      - DATA_DIR=/app/data
+    volumes:
+      - ./data:/app/data
+
+  # Optional Cloudflare Tunnel for zero-port-forward public HTTPS access
+  # Run with: docker compose --profile tunnel up -d
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: agent-3d-tunnel
+    restart: unless-stopped
+    profiles:
+      - tunnel
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN:-}
+    depends_on:
+      - agent-3d-server

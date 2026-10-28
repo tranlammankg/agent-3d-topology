@@ -1,0 +1,45 @@
+{
+  "name": "agent-3d-topology",
+  "version": "4.0.0",
+  "description": "Real-time 3D Isometric Cyberpunk Multi-Agent Topology Server, WebSocket Hub & MCP Server (Zero-dependency 3D Canvas Engine)",
+  "main": "src/server.js",
+  "bin": {
+    "agent-3d-topology": "./src/server.js",
+    "agent-3d-mcp": "./src/mcp/index.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "mcp": "node src/mcp/index.js",
+    "demo": "node scripts/demo_simulation.js",
+    "export-html": "node scripts/generate_topology.js",
+    "test": "node scripts/test_e2e.js",
+    "docker:up": "dot_clean -m . 2>/dev/null || true; find . -name '._*' -delete 2>/dev/null || true; docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  },
+  "keywords": [
+    "multi-agent",
+    "3d-topology",
+    "mcp",
+    "model-context-protocol",
+    "agent-swarm",
+    "visualization",
+    "isometric-3d",
+    "cyberpunk",
+    "antigravity",
+    "claude",
+    "cursor",
+    "crewai",
+    "autogen"
+  ],
+  "author": "Antigravity / Community Open Source",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}

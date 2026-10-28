@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>3D Agent Topology Room — Live Telemetry</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <script src="/AgentOffice3D.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #020617;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif;
+      color: #f8fafc;
+    }
+    #appLayout {
+       display: flex;
+       flex-direction: column;
+       width: 100vw;
+       height: 100vh;
+    }
+    /* Top Server Telemetry Header */
+    .room-header {
+      height: 44px;
+      background: rgba(9, 14, 28, 0.96);
+      border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      z-index: 40;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .room-header-left, .room-header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+    }
+    .room-header-left::-webkit-scrollbar, .room-header-right::-webkit-scrollbar { display: none; }
+    .hdr-btn {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #e2e8f0;
+      padding: 5px 10px;
+      border-radius: 7px;
+      font-size: 11.5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      text-decoration: none;
+      transition: all 0.18s;
+    }
+    .hdr-btn:hover {
+      background: rgba(51, 65, 85, 0.95);
+      border-color: #38bdf8;
+      color: #fff;
+    }
+    .hdr-btn.primary {
+      background: rgba(99, 102, 241, 0.25);
+      border-color: rgba(99, 102, 241, 0.6);
+      color: #c7d2fe;
+    }
+    .hdr-btn.primary:hover {
+      background: rgba(99, 102, 241, 0.4);
+    }
+    .live-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: monospace;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+      white-space: nowrap;
+    }
+    .live-pill.reconnecting {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.4);
+      color: #fbbf24;
+    }
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+      animation: pulseDot 1.5s infinite;
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+    .team-prog-wrap {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #94a3b8;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 4px 10px;
+      border-radius: 7px;
+      border: 1px solid rgba(255,255,255,0.08);
+      white-space: nowrap;
+    }
+    .team-prog-bar {
+      width: 70px;
+      height: 5px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .team-prog-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #34d399);
+      transition: width 0.3s ease;
+    }
+
+    /* Main 3D Viewport */
+    #viewportContainer {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      overflow: hidden;
+    }
+    #viewport {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Live Activity Feed Drawer (Top-Right) */
+    .activity-drawer {
+      position: absolute;
+      top: 52px;
+      right: 12px;
+      width: 310px;
+      max-height: calc(100% - 245px);
+      background: rgba(11, 18, 34, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 16px 36px rgba(0,0,0,0.65);
+      z-index: 22;
+      display: flex;
+      flex-direction: column;
+      padding: 11px;
+      transition: all 0.22s ease;
+    }
+    .activity-drawer.hidden {
+      display: none;
+    }
+    .activity-list {
+      overflow-y: auto;
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-right: 3px;
+      max-height: 260px;
+    }
+    .activity-list::-webkit-scrollbar { width: 4px; }
+    .activity-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+    .activity-item {
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: rgba(2, 6, 23, 0.55);
+      border-left: 3px solid #38bdf8;
+      padding: 6px 8px;
+      border-radius: 4px 7px 7px 4px;
+      cursor: pointer;
+      transition: background 0.15s;
+      line-height: 1.38;
+      word-break: break-word;
+    }
+    .activity-item:hover {
+      background: rgba(30, 41, 59, 0.75);
+    }
+    .activity-time {
+      font-size: 9.5px;
+      color: #64748b;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    /* Toast */
+    #toastBox {
+      position: fixed;
+      bottom: 52px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(16, 185, 129, 0.95);
+      color: #022c22;
+      font-weight: 700;
+      font-size: 12px;
+      font-family: monospace;
+      padding: 7px 16px;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      z-index: 100;
+      display: none;
+    }
+
+    /* Auth Prompt Modal */
+    #authOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.88);
+      backdrop-filter: blur(10px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 90;
+    }
+    .auth-card {
+      background: #0f172a;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 14px;
+      padding: 24px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+    }
+    .auth-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: #020617;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 8px;
+      color: #f8fafc;
+      font-family: monospace;
+      margin: 12px 0;
+      box-sizing: border-box;
+    }
+
+    @media (max-width: 768px) {
+      .team-prog-wrap { display: none; }
+      .activity-drawer {
+        width: calc(100vw - 24px);
+        left: 12px;
+        right: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="appLayout">
+    <!-- Top Header -->
+    <header class="room-header">
+      <div class="room-header-left">
+        <a href="/" class="hdr-btn" title="Back to Hub">🏠 Hub</a>
+        <div id="connBadge" class="live-pill">
+          <span class="live-dot"></span>
+          <span id="connText">LIVE</span>
+        </div>
+        <div class="team-prog-wrap">
+          <span id="teamProgLabel">Team:</span>
+          <div class="team-prog-bar"><div class="team-prog-fill" id="teamProgFill"></div></div>
+          <span id="teamProgVal" style="color:#34d399; font-weight:700;">0%</span>
+        </div>
+      </div>
+
+      <div class="room-header-right">
+        <button class="hdr-btn" id="toggleFeedBtn">📜 <span id="feedBtnText">Nhật ký (0)</span></button>
+        <button class="hdr-btn primary" id="shareLinkBtn">🔗 <span id="shareBtnText">Copy Link</span></button>
+        <button class="hdr-btn" id="langSwitchBtn">🇻🇳 VI</button>
+      </div>
+    </header>
+
+    <!-- 3D Viewport Container -->
+    <div id="viewportContainer">
+      <div id="viewport"></div>
+
+      <!-- Live Activity Log Drawer -->
+      <div class="activity-drawer" id="activityDrawer">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px; font-family:monospace;">
+          <span id="drawerTitle" style="font-size:11px; font-weight:700; color:#38bdf8; text-transform:uppercase;">⚡ Nhật Ký Hoạt Động Trực Tiếp</span>
+          <button class="hdr-btn" style="padding:2px 6px;" id="closeDrawerBtn">✕</button>
+        </div>
+        <div class="activity-list" id="activityList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Token Prompt Modal (if room is private and URL has no token) -->
+  <div id="authOverlay">
+    <div class="auth-card">
+      <h3 style="margin:0 0 8px 0; color:#38bdf8; font-family:monospace;">🔒 Phòng Yêu Cầu Mã Chứng Thực</h3>
+      <p style="font-size:12.5px; color:#94a3b8; margin:0;">Nhập <code>viewToken</code> (vt_...) hoặc <code>authToken</code> (sk_...) để xem phiên hoạt động 3D này:</p>
+      <input type="text" id="tokenInput" class="auth-input" placeholder="vt_... hoặc sk_..." />
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <a href="/" class="hdr-btn">Về Trang Chủ</a>
+        <button class="hdr-btn primary" id="submitTokenBtn">Xác Thực & Vào Phòng</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastBox">Đã sao chép link phòng 3D!</div>
+
+  <script>
+    (function () {
+      const pathParts = window.location.pathname.split('/').filter(Boolean);
+      const sessionId = decodeURIComponent(pathParts[pathParts.length - 1] || 'default');
+      const urlParams = new URLSearchParams(window.location.search);
+      let token = urlParams.get('token') || sessionStorage.getItem(`ao3d_token_${sessionId}`) || '';
+
+      if (token) {
+        sessionStorage.setItem(`ao3d_token_${sessionId}`, token);
+      }
+
+      let currentLang = localStorage.getItem('ao3d_lang') || 'vi';
+      const isMobile = window.innerWidth < 768;
+      const activityDrawer = document.getElementById('activityDrawer');
+      if (isMobile) activityDrawer.classList.add('hidden');
+
+      const UI_TEXT = {
+        vi: {
+          live: 'TRỰC TIẾP',
+          reconnecting: 'ĐANG KẾT NỐI LẠI...',
+          team: 'Tổng tiến độ:',
+          feedBtn: 'Nhật ký',
+          shareBtn: 'Sao chép Link',
+          drawerTitle: '⚡ Nhật Ký Hoạt Động Trực Tiếp',
+          copied: '✅ Đã sao chép link xem trực tiếp (kèm mã xác thực)!',
+          emptyFeed: 'Chưa có sự kiện nào.'
+        },
+        en: {
+          live: 'LIVE WS',
+          reconnecting: 'RECONNECTING...',
+          team: 'Team Progress:',
+          feedBtn: 'Live Feed',
+          shareBtn: 'Copy Share Link',
+          drawerTitle: '⚡ Live Activity & Speech Feed',
+          copied: '✅ Copied live 3D room link to clipboard!',
+          emptyFeed: 'No activity recorded yet.'
+        }
+      };
+
+      const office = new AgentOffice3D('#viewport', {
+        title: `Session #${sessionId}`,
+        lang: currentLang,
+        autoRotate: true
+      });
+
+      let eventsLog = [];
+
+      function updateUIText() {
+        const t = UI_TEXT[currentLang];
+        document.getElementById('teamProgLabel').textContent = t.team;
+        document.getElementById('shareBtnText').textContent = t.shareBtn;
+        document.getElementById('drawerTitle').textContent = t.drawerTitle;
+        document.getElementById('langSwitchBtn').textContent = currentLang === 'vi' ? '🇻🇳 VI' : '🇺🇸 EN';
+        document.getElementById('feedBtnText').textContent = `${t.feedBtn} (${eventsLog.length})`;
+        office.setLanguage(currentLang);
+      }
+
+      function updateTeamProgress() {
+        const agents = office.agents || [];
+        const avg = agents.length > 0
+          ? Math.round(agents.reduce((s, a) => s + (a.progress || 0), 0) / agents.length)
+          : 0;
+        document.getElementById('teamProgFill').style.width = `${avg}%`;
+        document.getElementById('teamProgVal').textContent = `${avg}%`;
+      }
+
+      function appendEventToDrawer(evt) {
+        if (!evt) return;
+        eventsLog.push(evt);
+        if (eventsLog.length > 60) eventsLog.shift();
+
+        const t = UI_TEXT[currentLang];
+        document.getElementById('feedBtnText').textContent = `${t.feedBtn} (${eventsLog.length})`;
+
+        const listEl = document.getElementById('activityList');
+        const item = document.createElement('div');
+        item.className = 'activity-item';
+        item.style.borderLeftColor = evt.agentColor || '#38bdf8';
+
+        const timeStr = new Date(evt.timestamp || Date.now()).toLocaleTimeString();
+        const prefix = evt.agentName ? `<strong style="color:${evt.agentColor || '#38bdf8'}">[${evt.agentName}]</strong> ` : '';
+        item.innerHTML = `<span class="activity-time">${timeStr}</span>${prefix}${evt.message || evt.type}`;
+
+        if (evt.agentId) {
+          item.addEventListener('click', () => office.focusAgent(evt.agentId));
+        }
+
+        listEl.prepend(item);
+      }
+
+      // Controls
+      document.getElementById('toggleFeedBtn').addEventListener('click', () => {
+        activityDrawer.classList.toggle('hidden');
+      });
+      document.getElementById('closeDrawerBtn').addEventListener('click', () => {
+        activityDrawer.classList.add('hidden');
+      });
+      document.getElementById('langSwitchBtn').addEventListener('click', () => {
+        currentLang = currentLang === 'vi' ? 'en' : 'vi';
+        localStorage.setItem('ao3d_lang', currentLang);
+        updateUIText();
+      });
+
+      document.getElementById('shareLinkBtn').addEventListener('click', () => {
+        const shareUrl = new URL(window.location.href);
+        if (token) shareUrl.searchParams.set('token', token);
+        navigator.clipboard.writeText(shareUrl.toString()).then(() => {
+          const toast = document.getElementById('toastBox');
+          toast.textContent = UI_TEXT[currentLang].copied;
+          toast.style.display = 'block';
+          setTimeout(() => { toast.style.display = 'none'; }, 2800);
+        });
+      });
+
+      document.getElementById('submitTokenBtn').addEventListener('click', () => {
+        const val = document.getElementById('tokenInput').value.trim();
+        if (!val) return;
+        token = val;
+        sessionStorage.setItem(`ao3d_token_${sessionId}`, token);
+        document.getElementById('authOverlay').style.display = 'none';
+        connectWebSocket();
+      });
+
+      // WebSocket with Exponential Backoff Auto-Reconnect
+      let ws = null;
+      let retryDelay = 1000;
+
+      function setConnState(isLive, customText) {
+        const badge = document.getElementById('connBadge');
+        const txt = document.getElementById('connText');
+        if (isLive) {
+          badge.classList.remove('reconnecting');
+          txt.textContent = UI_TEXT[currentLang].live;
+        } else {
+          badge.classList.add('reconnecting');
+          txt.textContent = customText || UI_TEXT[currentLang].reconnecting;
+        }
+      }
+
+      function applySnapshot(snapshot) {
+        if (!snapshot) return;
+        office.setTitle(snapshot.title || `Session #${sessionId}`);
+        office.setAgents(snapshot.agents || []);
+        updateTeamProgress();
+
+        // Populate event history
+        const listEl = document.getElementById('activityList');
+        listEl.innerHTML = '';
+        eventsLog = [];
+        (snapshot.events || []).forEach(evt => appendEventToDrawer(evt));
+
+        // Replay active speech bubbles for Late-Joiners!
+        (snapshot.activeBubbles || []).forEach(b => {
+          office.speak(b.agentId, b.message, b.remainingMs || 4000);
+        });
+      }
+
+      function connectWebSocket() {
+        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${proto}//${window.location.host}/ws?sessionId=${encodeURIComponent(sessionId)}&token=${encodeURIComponent(token)}`;
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          retryDelay = 1000;
+          setConnState(true);
+        };
+
+        ws.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            if (msg.type === 'AUTH_REQUIRED') {
+              document.getElementById('authOverlay').style.display = 'flex';
+              return;
+            }
+            if (msg.type === 'SNAPSHOT') {
+              applySnapshot(msg.snapshot);
+            } else if (msg.type === 'AGENTS_SYNC') {
+              office.setAgents(msg.agents || []);
+              updateTeamProgress();
+              if (msg.event) appendEventToDrawer(msg.event);
+            } else if (msg.type === 'AGENT_UPSERT') {
+              office.upsertAgent(msg.agent);
+              updateTeamProgress();
+              if (msg.event) appendEventToDrawer(msg.event);
+            } else if (msg.type === 'AGENT_REMOVE') {
+              office.removeAgent(msg.agentId);
+              updateTeamProgress();
+              if (msg.event) appendEventToDrawer(msg.event);
+            } else if (msg.type === 'AGENT_SPEAK') {
+              office.speak(msg.agentId, msg.message, msg.durationMs || 5000);
+              if (msg.event) appendEventToDrawer(msg.event);
+            } else if (msg.type === 'SESSION_CLOSED') {
+              if (msg.event) appendEventToDrawer(msg.event);
+            }
+          } catch (err) {
+            console.error('WS parse error:', err);
+          }
+        };
+
+        ws.onclose = (ev) => {
+          if (ev.code === 4003) {
+            document.getElementById('authOverlay').style.display = 'flex';
+            return;
+          }
+          setConnState(false);
+          setTimeout(() => {
+            retryDelay = Math.min(8000, retryDelay * 1.5);
+            connectWebSocket();
+          }, retryDelay);
+        };
+      }
+
+      updateUIText();
+      connectWebSocket();
+    })();
+  </script>
+</body>
+</html>

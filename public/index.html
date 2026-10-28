@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Agent 3D Topology Hub — Multi-Agent 3D Server & MCP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg: #020617;
+      --card: rgba(15, 23, 42, 0.85);
+      --border: rgba(56, 189, 248, 0.2);
+      --cyan: #38bdf8;
+      --indigo: #6366f1;
+      --emerald: #34d399;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      background: radial-gradient(circle at 50% 0%, #0f172a 0%, #020617 75%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      margin-bottom: 28px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #6366f1, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+    }
+    .btn {
+      background: rgba(30, 41, 59, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: var(--text);
+      padding: 9px 16px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      border-color: var(--cyan);
+      background: rgba(51, 65, 85, 0.95);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #4f46e5, #0284c7);
+      border-color: #38bdf8;
+      box-shadow: 0 8px 24px rgba(56, 189, 248, 0.28);
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(56, 189, 248, 0.4);
+    }
+    .btn-emerald {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: #10b981;
+      color: #6ee7b7;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 22px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 860px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+    }
+    .card h2 {
+      margin: 0 0 12px 0;
+      font-size: 17px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #e0f2fe;
+    }
+    .session-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 14px;
+      max-height: 340px;
+      overflow-y: auto;
+    }
+    .session-item {
+      background: rgba(2, 6, 23, 0.65);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      transition: border-color 0.2s;
+    }
+    .session-item:hover {
+      border-color: var(--cyan);
+    }
+    .input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    input[type="text"] {
+      flex: 1;
+      background: #020617;
+      border: 1px solid rgba(255,255,255,0.16);
+      color: #f8fafc;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 13px;
+    }
+    pre {
+      background: #020617;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 14px;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #cbd5e1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      margin: 10px 0 0 0;
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      background: rgba(2, 6, 23, 0.6);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--muted);
+      padding: 6px 12px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-family: monospace;
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.18);
+      border-color: var(--cyan);
+      color: #fff;
+    }
+    .created-box {
+      margin-top: 14px;
+      padding: 12px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 10px;
+      font-family: monospace;
+      font-size: 12px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="brand-icon">🌐</div>
+        <div>
+          <h1 style="margin:0; font-size:21px; font-family:monospace;">Agent 3D Topology Hub <span style="font-size:12px; color:#38bdf8; background:rgba(56,189,248,0.15); padding:2px 8px; border-radius:99px;">v4.0</span></h1>
+          <p id="subHeader" style="margin:4px 0 0 0; font-size:13px; color:#94a3b8;">Server Trực Quan Hóa Đa Tác Tử 3D & Cổng Giao Thức MCP Thời Gian Thực</p>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="startDemoBtn">🚀 <span id="demoBtnTxt">Chạy Mô Phỏng Swarm Biến Hình (N: 1→14→5)</span></button>
+        <button class="btn" id="langBtn">🇻🇳 VI</button>
+      </div>
+    </header>
+
+    <div class="grid-2">
+      <!-- Active Sessions -->
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h2 id="activeRoomsTitle">📡 Các Phiên Agent Đang Hoạt Động</h2>
+          <button class="btn" style="padding:4px 10px; font-size:11px;" id="refreshBtn">🔄 Làm mới</button>
+        </div>
+        <p id="activeRoomsDesc" style="margin:0; font-size:12.5px; color:#94a3b8;">Mỗi phiên có mã chứng thực riêng. Nhấn vào phòng để mở không gian 3D thời gian thực.</p>
+        <div class="session-list" id="sessionsList"></div>
+      </div>
+
+      <!-- Create Session -->
+      <div class="card">
+        <h2 id="createRoomTitle">➕ Khởi Tạo Phòng Điều Hành 3D Mới</h2>
+        <p id="createRoomDesc" style="margin:0; font-size:12.5px; color:#94a3b8;">Tạo phiên mới và nhận mã <code>authToken</code> (dành cho Agent gửi dữ liệu) cùng <code>viewUrl</code> (dành cho trình duyệt xem).</p>
+        <div class="input-row">
+          <input type="text" id="newRoomTitle" placeholder="Tên dự án / Đội ngũ Agent (VD: Refactor Microservice)..." />
+          <button class="btn btn-emerald" id="createRoomBtn">Tạo Phòng</button>
+        </div>
+        <div class="created-box" id="createdResultBox"></div>
+      </div>
+    </div>
+
+    <!-- Integration Guide (MCP & Webhook API) -->
+    <div class="card">
+      <h2 id="intTitle">🔌 Tích Hợp Đa Nền Tảng (MCP, Skill, Webhook, cURL & SDK)</h2>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="mcp">1. Chuẩn MCP (Antigravity / Claude / Cursor)</button>
+        <button class="tab-btn" data-tab="push">2. Gọi 1 Lệnh JSON Duy Nhất (/api/push)</button>
+        <button class="tab-btn" data-tab="rest">3. Chuẩn REST API Có Xác Thực Token</button>
+      </div>
+      <div id="tabContent"></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      let lang = localStorage.getItem('ao3d_lang') || 'vi';
+      let currentTab = 'mcp';
+      const origin = window.location.origin;
+
+      function renderTabs() {
+        const el = document.getElementById('tabContent');
+        if (currentTab === 'mcp') {
+          el.innerHTML = `
+            <p style="font-size:12.5px; color:#94a3b8; margin:0 0 6px 0;">
+              Cấu hình vào <code>mcp_config.json</code> hoặc <code>claude_desktop_config.json</code>. Hỗ trợ cả kết nối từ xa qua biến môi trường <code>AGENT_3D_URL</code>:
+            </p>
+            <pre>{
+  "mcpServers": {
+    "agent-3d-topology": {
+      "command": "node",
+      "args": ["/Volumes/ExtData/agnet3dopology/src/mcp/index.js"],
+      "env": {
+        "AGENT_3D_URL": "${origin}"
+      }
+    }
+  }
+}</pre>`;
+        } else if (currentTab === 'push') {
+          el.innerHTML = `
+            <p style="font-size:12.5px; color:#94a3b8; margin:0 0 6px 0;">
+              Đẩy trực tiếp JSON từ bất kỳ Skill, Script, n8n hay Agent nào chỉ bằng <strong>1 lệnh POST duy nhất</strong> (tự động tạo phòng nếu chưa có):
+            </p>
+            <pre>curl -X POST "${origin}/api/push" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "sessionId": "my-team-01",
+    "title": "Đội Ngũ Tự Hành AI",
+    "agents": [
+      { "id": "lead", "name": "Tổng Chỉ Huy", "role": "Orchestrator", "progress": 60, "isLeader": true },
+      { "id": "coder", "name": "Kỹ Sư Backend", "role": "Developer", "progress": 85, "status": "Building Docker" }
+    ],
+    "speak": { "agentId": "coder", "message": "Đã đóng gói xong container chuẩn ARM64!" }
+  }'</pre>`;
+        } else {
+          el.innerHTML = `
+            <p style="font-size:12.5px; color:#94a3b8; margin:0 0 6px 0;">
+              Quy trình chuẩn bảo mật 2 lớp (Write <code>authToken</code> & Read <code>viewToken</code>) khi chạy nhiều phiên song song:
+            </p>
+            <pre># Bước 1: Tạo phiên mới -> Nhận sessionId, authToken (sk_...) và viewUrl
+curl -X POST "${origin}/api/sessions" -H "Content-Type: application/json" -d '{"title":"Swarm Session"}'
+
+# Bước 2: Thêm/Cập nhật Agent hoặc Phát ngôn (Dùng Bearer authToken)
+curl -X PATCH "${origin}/api/sessions/SES_ID/agents/worker_1" \\
+  -H "Authorization: Bearer sk_YOUR_AUTH_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"Kỹ Sư AI","role":"Subagent","progress":75,"speakMessage":"Đang tối ưu hóa thuật toán!"}'</pre>`;
+        }
+      }
+
+      async function loadSessions() {
+        const listEl = document.getElementById('sessionsList');
+        try {
+          const res = await fetch('/api/sessions');
+          const data = await res.json();
+          const sessions = data.sessions || [];
+          if (sessions.length === 0) {
+            listEl.innerHTML = `<div style="color:#64748b; font-size:12.5px; font-family:monospace; padding:12px;">Chưa có phiên nào. Hãy bấm nút "🚀 Chạy Mô Phỏng Swarm" ở góc trên để xem ngay!</div>`;
+            return;
+          }
+          listEl.innerHTML = sessions.map(s => {
+            const url = `/room/${encodeURIComponent(s.id)}${s.viewTokenHint ? '?token=' + encodeURIComponent(s.viewTokenHint) : ''}`;
+            return `
+              <div class="session-item">
+                <div>
+                  <div style="font-weight:700; font-size:13.5px; color:#f8fafc;">${s.title}</div>
+                  <div style="font-size:11px; color:#94a3b8; font-family:monospace; margin-top:3px;">
+                    ID: <code>${s.id}</code> • 👥 ${s.agentCount} Agents • 📊 ${s.totalProgress}%
+                  </div>
+                </div>
+                <a href="${url}" class="btn btn-emerald" style="padding:6px 12px; font-size:12px;">👁️ Mở 3D</a>
+              </div>
+            `;
+          }).join('');
+        } catch (e) {
+          listEl.innerHTML = `<div style="color:#f43f5e; font-size:12px;">Không thể tải danh sách phiên.</div>`;
+        }
+      }
+
+      document.getElementById('startDemoBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('startDemoBtn');
+        btn.disabled = true;
+        try {
+          const res = await fetch('/api/demo/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lang })
+          });
+          const data = await res.json();
+          if (data.viewUrl) {
+            window.location.href = data.viewUrl;
+          }
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      document.getElementById('createRoomBtn').addEventListener('click', async () => {
+        const titleInput = document.getElementById('newRoomTitle');
+        const title = titleInput.value.trim() || 'Phòng Điều Hành 3D Mới';
+        const res = await fetch('/api/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title })
+        });
+        const data = await res.json();
+        const box = document.getElementById('createdResultBox');
+        box.style.display = 'block';
+        box.innerHTML = `
+          <div style="margin-bottom:6px; color:#34d399; font-weight:700;">✅ Đã khởi tạo phiên thành công!</div>
+          <div>• <strong>Session ID:</strong> <code>${data.sessionId}</code></div>
+          <div>• <strong>Write AuthToken:</strong> <code>${data.authToken}</code></div>
+          <div style="margin-top:8px;">
+            <a href="${data.viewUrl}" class="btn btn-primary" style="padding:6px 12px; font-size:12px;">🚀 Vào Phòng 3D Ngay</a>
+          </div>
+        `;
+        titleInput.value = '';
+        loadSessions();
+      });
+
+      document.getElementById('refreshBtn').addEventListener('click', loadSessions);
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentTab = btn.dataset.tab;
+          renderTabs();
+        });
+      });
+
+      document.getElementById('langBtn').addEventListener('click', () => {
+        lang = lang === 'vi' ? 'en' : 'vi';
+        localStorage.setItem('ao3d_lang', lang);
+        document.getElementById('langBtn').textContent = lang === 'vi' ? '🇻🇳 VI' : '🇺🇸 EN';
+      });
+
+      renderTabs();
+      loadSessions();
+    })();
+  </script>
+</body>
+</html>
