@@ -262,31 +262,40 @@ router.post('/demo/start', (req, res) => {
     );
   }, 800);
 
-  // Step 1 (t=2.5s): Expand N=1 -> N=4 (Semi-Arc Layout)
+  // Step 1 (t=2.5s): Expand N=1 -> N=4 (Semi-Arc Layout; 2 idle agents go sit on Sofa playing games!)
   setTimeout(() => {
     if (!sessionManager.getSession(sid)) return;
     sessionManager.upsertAgents(sid, [
-      { id: 'arch_be', name: isEn ? 'Backend Architect' : 'Kiến Trúc Backend', role: 'System Architect', color: '#38bdf8', progress: 25, status: 'Designing API' },
-      { id: 'arch_fe', name: isEn ? 'UI/3D Specialist' : 'Chuyên Gia 3D UI', role: 'Frontend Lead', color: '#34d399', progress: 30, status: 'Canvas HiDPI' },
-      { id: 'arch_sec', name: isEn ? 'Security Auditor' : 'Bảo Mật STRIDE', role: 'SecOps', color: '#f43f5e', progress: 40, status: 'Token Auth' }
+      { id: 'arch_be', name: isEn ? 'Backend Architect' : 'Kiến Trúc Backend', role: 'System Architect', color: '#38bdf8', progress: 45, status: 'Designing API' },
+      { id: 'arch_fe', name: isEn ? 'UI/3D Specialist' : 'Chuyên Gia 3D UI', role: 'Frontend Lead', color: '#34d399', progress: 0, status: isEn ? 'Idle / Gaming on Sofa' : 'Rảnh / Chơi Game Sofa' },
+      { id: 'arch_sec', name: isEn ? 'Security Auditor' : 'Bảo Mật STRIDE', role: 'SecOps', color: '#f43f5e', progress: 0, status: isEn ? 'Idle / Gaming on Sofa' : 'Rảnh / Chơi Game Sofa' }
     ]);
-    sessionManager.agentSpeak(sid, 'arch_be', isEn ? 'REST & WebSocket schemas ready!' : 'Đã thiết kế xong chuẩn REST & WebSocket!', 4000);
+    sessionManager.agentSpeak(sid, 'arch_fe', isEn ? 'Chilling on the sofa playing games while waiting for tasks! 🎮' : 'Đang rảnh nên ra ghế Sofa chơi game chờ việc! 🎮', 4200);
   }, 2600);
 
-  // Step 2 (t=6.5s): Expand N=4 -> N=8 (Radial Command Hub Layout)
+  // Step 2 (t=6.5s): Expand N=4 -> N=8 (Idle agents run from Sofa to Desks; Backend hits 100% & walks to Leader to hand over report!)
   setTimeout(() => {
     if (!sessionManager.getSession(sid)) return;
     sessionManager.updateAgent(sid, 'orchestrator', { progress: 50, status: isEn ? 'Scaling Radial Hub' : 'Mở rộng Radial Hub' });
-    sessionManager.agentSpeak(
-      sid,
-      'orchestrator',
-      isEn ? 'Task complexity increased! Scaling to Radial Command Hub (N=8)...' : 'Mở rộng quy mô! Chuyển sang đội hình Radial Command Hub (N=8)...',
-      4500
-    );
+    sessionManager.updateAgent(sid, 'arch_be', {
+      progress: 100,
+      status: isEn ? 'Done 100% (Reporting)' : 'Xong 100% (Đi báo cáo)',
+      handover: true,
+      speakMessage: isEn ? 'API 100% done! Walking to Leader desk to hand over data! 📦' : 'Chốt 100% API! Đang mang dữ liệu ra bàn Chỉ Huy báo cáo! 📦'
+    });
+    sessionManager.updateAgent(sid, 'arch_fe', {
+      progress: 55,
+      status: isEn ? 'Running to Desk!' : 'Chạy ra bàn làm việc!',
+      speakMessage: isEn ? 'Got a task! Running from sofa back to my workstation!' : 'Có việc rồi! Chạy từ ghế Sofa ra bàn làm việc ngay!'
+    });
+    sessionManager.updateAgent(sid, 'arch_sec', {
+      progress: 65,
+      status: isEn ? 'Auditing Token Auth' : 'Đang kiểm tra Token'
+    });
     sessionManager.upsertAgents(sid, [
       { id: 'dev_mcp', name: isEn ? 'MCP Protocol Dev' : 'Kỹ Sư Giao Thức MCP', role: 'MCP Engineer', color: '#a855f7', progress: 45, status: 'STDIO + HTTP' },
       { id: 'dev_docker', name: isEn ? 'Docker ARM64 Ops' : 'Kỹ Sư Docker Mac', role: 'DevOps', color: '#fbbf24', progress: 60, status: 'Alpine Build' },
-      { id: 'qa_auto', name: isEn ? 'Chaos Tester' : 'Kiểm Thử Chaos', role: 'QA Lead', color: '#14b8a6', progress: 35, status: 'Stress Testing' },
+      { id: 'qa_auto', name: isEn ? 'Chaos Tester' : 'Kiểm Thử Chaos', role: 'QA Lead', color: '#14b8a6', progress: 0, status: isEn ? 'Idle / Sofa Gaming' : 'Rảnh / Ngồi Sofa' },
       { id: 'net_tunnel', name: isEn ? 'Cloudflare Tunnel' : 'Mạng Cloudflare', role: 'Network Agent', color: '#f97316', progress: 70, status: '25s Heartbeat' }
     ]);
   }, 6500);

@@ -189,6 +189,8 @@ class SessionManager {
       message: raw.message !== undefined ? String(raw.message) : (existing ? existing.message : 'Standing by at workstation.'),
       color: raw.color || (existing && existing.color) || hashColor(id),
       isLeader: raw.isLeader !== undefined ? Boolean(raw.isLeader) : (existing ? existing.isLeader : false),
+      reportTo: raw.reportTo !== undefined ? raw.reportTo : (existing ? existing.reportTo : null),
+      handover: Boolean(raw.handover),
       screens: raw.screens || (existing && existing.screens) || 2,
       joinedAt: existing ? existing.joinedAt : now,
       updatedAt: now

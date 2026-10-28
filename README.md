@@ -58,6 +58,9 @@ flowchart LR
   * **$N = 2 \dots 4$ (Semi-Circle Arc):** Curved arc facing the camera.
   * **$N = 5 \dots 12$ (Radial Command Hub):** Orchestrator/Leader at the 3-screen central command deck; worker agents arranged in an elliptical ring.
   * **$N > 12$ (Swarm Pod Matrix):** Scalable 2-column workstation matrix with a central walkway and **Elastic Auto-Framing Camera Zoom**.
+* **🎮 Cyber Sofa Gaming Lounge & Physical 100% Data Handover Walk:**
+  * **Idle / Standby Gaming:** When agents are idle (`progress: 0` or status `Idle / Rảnh / Standby`), they physically walk over to the **Cyber Sofa Gaming Lounge** to sit down, hold glowing gamepads, and play retro-cyber arcade games on the holographic big screen! As soon as a task arrives, they jump off the sofa and **run back to their workstation desks** to start typing.
+  * **100% Milestone Handover Walk:** When an agent completes a task (`100%`), they stand up from their desk carrying a glowing **3D Data Cube (`📦 100%`)**, walk across the office floor to the **Leader/Orchestrator's desk** (or `reportTo` agent) to hand over the result with an energy burst, and then head to the Sofa Lounge to relax!
 * **⚡ Glowing Floor Conduits & Data Packets:**
   Isometric circuit lines connect the Leader desk to every Subagent desk. Whenever an agent speaks or updates progress, glowing data pulses travel along the floor conduits in real time.
 * **💬 5-Second 3D Speech Bubbles & Live Activity Feed:**
@@ -209,7 +212,10 @@ Hệ thống được tối ưu hóa để chạy ngầm 24/7 trên **Mac mini (
    * **$N = 2 \dots 4$ (Semi-Circle Arc):** Đội hình vòng cung bán nguyệt.
    * **$N = 5 \dots 12$ (Radial Command Hub):** `Leader/Chỉ huy` ngồi tại đài chỉ huy 3 màn hình ở trung tâm; các `Worker` xếp thành vòng tròn Elip bao quanh.
    * **$N > 12$ (Swarm Pod Matrix):** Chia thành ma trận 2 dãy cụm bàn hai bên lối đi trung tâm, camera tự động lùi/tiến (**Elastic Auto-Framing Zoom**) để luôn bao quát trọn vẹn đội hình.
-2. **⚡ Đường Mạch Năng Lượng & Xung Dữ Liệu 3D (Floor Topology Conduits):**
+2. **🎮 Khu Ghế Sofa Chơi Game & Đi Bộ Giao Báo Cáo Chốt 100%:**
+   * **Rảnh rỗi ra Sofa chơi game:** Khi tác tử đang rảnh hoặc chờ việc (`progress: 0` hoặc `status: "Rảnh / Idle"`), nhân vật sẽ tự động rời bàn làm việc, đi bộ ra **Khu Sofa Giải Trí (`🎮 SOFA GIẢI TRÍ`)**, ngồi cầm tay cầm chơi game trước màn hình Hologram lớn. Ngay khi có nhiệm vụ mới được giao, nhân vật lập tức **chạy từ ghế Sofa về lại bàn làm việc** để gõ phím!
+   * **Chốt 100% mang dữ liệu đi báo cáo:** Khi một tác tử đạt mốc **100% tiến độ** (hoặc định kỳ báo cáo), nhân vật sẽ đứng dậy cầm theo **Khối Dữ Liệu 3D phát sáng (`📦 Giao báo cáo 100%`)**, đi bộ trực tiếp tới bàn của **Tổng Chỉ Huy (`Leader`)** để bàn giao kết quả trước khi ra ghế Sofa nghỉ ngơi!
+3. **⚡ Đường Mạch Năng Lượng & Xung Dữ Liệu 3D (Floor Topology Conduits):**
    Dưới mặt sàn có các đường mạch phát sáng nối từ bàn `Chỉ Huy` tới từng `Tác tử`. Mỗi khi có tác tử báo cáo hoặc cập nhật `% tiến độ`, hạt xung ánh sáng sẽ bắn dọc theo đường dây.
 3. **💬 Bong Bóng Hội Thoại 5 Giây & Ngăn Nhật Ký Trực Tiếp (Live Activity Feed):**
    * Khi Agent gọi lệnh `speak`, bong bóng chat 3D kèm thanh đếm ngược 5 giây sẽ bật lên ngay trên đầu nhân vật.
