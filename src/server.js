@@ -15,9 +15,34 @@ const app = express();
 // Trust reverse proxies (Cloudflare Tunnel, Nginx, Caddy, Traefik)
 app.set('trust proxy', true);
 
-// Universal CORS support for cross-origin agents & dashboards
+// CORS for cross-origin agents & dashboards.
+//
+// The default is still "*" so server-to-server agents keep working out of the box, but
+// note what that means for a server on localhost: any web page the user visits can POST
+// to http://localhost:3300 AND read the response, which is enough to enumerate and drive
+// rooms from a drive-by page. Set CORS_ALLOWED_ORIGINS to a comma-separated allowlist
+// (or "none" to send no CORS headers at all) when the server is reachable from a browser
+// that also browses the open web.
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const allowed = config.corsAllowedOrigins;
+
+  if (allowed === 'none') {
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    return next();
+  }
+
+  if (allowed === '*') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else {
+    const origin = req.headers.origin;
+    if (origin && allowed.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    } else if (req.method === 'OPTIONS') {
+      return res.sendStatus(403);
+    }
+  }
+
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Auth-Token, X-Api-Key');
   if (req.method === 'OPTIONS') return res.sendStatus(204);

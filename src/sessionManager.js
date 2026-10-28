@@ -77,7 +77,9 @@ class SessionManager {
         }
         const data = Array.from(this.sessions.values());
         const tmpFile = `${this.storeFile}.tmp`;
-        fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf8');
+        // The store holds every room's authToken and viewToken in plaintext,
+        // so keep it readable by the owner only.
+        fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), { encoding: 'utf8', mode: 0o600 });
         fs.renameSync(tmpFile, this.storeFile);
       } catch (err) {
         console.error('[SessionManager] Failed to save sessions:', err.message);

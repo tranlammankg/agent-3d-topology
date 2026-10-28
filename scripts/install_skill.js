@@ -90,8 +90,12 @@ function copySkillTo(destDir) {
 }
 
 function main() {
-  // Also ensure repo's own skills/agent-3d-topology has generate_topology.js
-  fs.writeFileSync(path.join(skillSrcDir, 'scripts', 'generate_topology.js'), standaloneExporterCode, 'utf8');
+  // Only write the repo's own copy when it is missing. Rewriting it on every run
+  // dirtied the git working tree right after `npm run install-skill`.
+  const repoExporter = path.join(skillSrcDir, 'scripts', 'generate_topology.js');
+  if (!fs.existsSync(repoExporter)) {
+    fs.writeFileSync(repoExporter, standaloneExporterCode, 'utf8');
+  }
 
   const home = os.homedir();
   const targets = [
