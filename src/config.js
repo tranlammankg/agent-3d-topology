@@ -28,6 +28,9 @@ const config = {
   maxSessions: parseInt(process.env.MAX_SESSIONS || '200', 10),
   sessionTtlHours: parseFloat(process.env.SESSION_TTL_HOURS || '24'),
   maxEventsPerSession: parseInt(process.env.MAX_EVENTS_PER_SESSION || '60', 10),
+  // Hard ceiling on desks per room. The 3D engine morphs up to ~50 agents; this guards
+  // against an unbounded roster growing memory and the on-disk session store.
+  maxAgentsPerSession: parseInt(process.env.MAX_AGENTS_PER_SESSION || '100', 10),
   dataDir: path.resolve(__dirname, '..', process.env.DATA_DIR || './data'),
   defaultLang: (process.env.DEFAULT_LANG || 'vi').toLowerCase(),
 

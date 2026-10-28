@@ -203,7 +203,7 @@ router.post('/push', (req, res) => {
     if (!isQuickPushRoom && !sessionManager.verifyWriteAccess(session, token)) {
       return res.status(401).json({ error: 'Unauthorized: Invalid authToken for existing session.' });
     }
-    if (title) session.title = title;
+    if (title) session.title = String(title).slice(0, 160);
   }
 
   if (Array.isArray(agents)) {
