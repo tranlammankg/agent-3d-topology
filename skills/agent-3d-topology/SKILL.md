@@ -3,10 +3,11 @@ name: agent-3d-topology
 description: >-
   Visualizes running or completed multi-agent systems, swarm sessions, and background tasks in an interactive 3D cyberpunk office environment.
   Supports real-time streaming via the Dockerized Agent 3D Topology Server & MCP Hub (multi-session with dual-token authentication),
-  dynamic topology morphing as agent count changes (N = 1 to 50+), floor synapse conduits, 5-second speech bubbles, and standalone HTML export.
+  dynamic topology morphing as agent count changes (N = 1 to 50+), Cyber Sofa Gaming Lounge for idle agents, physical 100% milestone data handover walks,
+  floor synapse conduits, 5-second speech bubbles, and standalone HTML export.
 ---
 
-# Agent 3D Topology Skill (v4.0 — Live Server, MCP & Standalone)
+# Agent 3D Topology Skill (v4.2 — Live Server, MCP, Sofa Lounge & Handover Walk)
 
 This skill enables any AI Assistant / Agent to visualize multi-agent teams, subagents, and background tasks in a real-time **3D Isometric Cyberpunk Command Center**.
 
@@ -21,6 +22,22 @@ Activate this skill whenever:
 
 ---
 
+## Character Locomotion & Behavioral States (v4.2)
+
+When updating agents in the 3D office, control their physical movement across the room using these states:
+
+1. **🎮 Sofa Gaming Lounge (Idle / Waiting State):**
+   - Set `progress: 0` or `status: "Rảnh"` / `"Idle"` / `"Standby"` for any agent waiting for work.
+   - The character will leave their desk and walk over to the **Cyber Sofa Gaming Lounge** to sit down and play arcade games.
+2. **💻 Running from Sofa to Workstation (Active Working State):**
+   - Update `progress` to `1..99` and `status: "Working"` (or `"Đang xử lý"`).
+   - The character immediately jumps off the sofa, runs back to their workstation desk, and starts typing.
+3. **📦 100% Milestone Physical Handover Walk:**
+   - Set `progress: 100`, `status: "Done"` (or `"Hoàn thành"`), and optionally `reportTo: "<targetAgentId>"` (defaults to the `Leader`) or `handover: true`.
+   - The character stands up holding a glowing **3D Data Cube (`📦 100%`)**, walks across the floor to the target agent's desk to hand over the result, and then walks to the Sofa Lounge to relax.
+
+---
+
 ## Workflow 1: Push Live to the 3D Topology Server (Recommended)
 
 By default, the server runs on `http://localhost:3300` (or the URL in `$AGENT_3D_URL`).
@@ -32,21 +49,32 @@ You can use the bundled `scripts/push_3d.js` helper (which automatically remembe
 # 1. Initialize a new 3D session (returns viewUrl to share with the user!)
 node ~/.gemini/config/skills/agent-3d-topology/scripts/push_3d.js init --title "Phòng Điều Hành AI" --leaderName "Tổng Chỉ Huy"
 
-# 2. Spawn or update an agent & trigger a 5-second 3D speech bubble
+# 2. Spawn an idle agent chilling on the Sofa playing games
 node ~/.gemini/config/skills/agent-3d-topology/scripts/push_3d.js upsert \
   --id "backend_dev" \
   --name "Kỹ Sư Backend" \
   --role "Developer" \
+  --progress 0 \
+  --status "Rảnh / Chơi Game Sofa" \
+  --speak "Đang ngồi ghế Sofa chơi game chờ việc! 🎮"
+
+# 3. Assign work -> Agent runs from Sofa to Workstation Desk!
+node ~/.gemini/config/skills/agent-3d-topology/scripts/push_3d.js upsert \
+  --id "backend_dev" \
   --progress 65 \
   --status "Coding API" \
-  --speak "Đang xây dựng hệ thống WebSocket thời gian thực!"
+  --speak "Có việc rồi! Chạy về bàn làm việc ngay!"
 
-# 3. Trigger a speech bubble at any time
-node ~/.gemini/config/skills/agent-3d-topology/scripts/push_3d.js speak \
+# 4. Complete 100% -> Agent walks to Leader desk carrying 3D Data Cube (📦 100%)!
+node ~/.gemini/config/skills/agent-3d-topology/scripts/push_3d.js upsert \
   --id "backend_dev" \
-  --message "Đã hoàn thành kiểm thử 100%!"
+  --progress 100 \
+  --status "Hoàn thành 100%" \
+  --reportTo "orchestrator" \
+  --handover true \
+  --speak "Chốt 100%! Mang dữ liệu ra bàn Chỉ Huy báo cáo! 📦"
 
-# 4. Remove a subagent when its task finishes (triggers 3D Hologram Dissolve & re-layout)
+# 5. Remove a subagent when its task finishes (triggers 3D Hologram Dissolve & re-layout)
 node ~/.gemini/config/skills/agent-3d-topology/scripts/push_3d.js remove --id "backend_dev"
 ```
 
@@ -61,11 +89,11 @@ curl -s -X POST "${AGENT_3D_URL:-http://localhost:3300}/api/push" \
     "agents": [
       { "id": "leader", "name": "Tổng Chỉ Huy", "role": "Orchestrator", "progress": 75, "isLeader": true },
       { "id": "dev", "name": "Kỹ Sư Backend", "role": "Developer", "progress": 90, "status": "Coding" },
-      { "id": "qa", "name": "Kiểm Thử QA", "role": "QA Engineer", "progress": 100, "status": "Done" }
+      { "id": "qa", "name": "Kiểm Thử QA", "role": "QA Engineer", "progress": 100, "status": "Done", "handover": true, "reportTo": "leader" }
     ],
     "speak": {
-      "agentId": "dev",
-      "message": "Đã cập nhật trạng thái thời gian thực lên phòng 3D!"
+      "agentId": "qa",
+      "message": "Đã hoàn thành 100%, đang mang báo cáo qua bàn Chỉ Huy!"
     }
   }'
 ```

@@ -152,6 +152,8 @@ async function main() {
     if (args.desc) patch.desc = args.desc;
     if (args.color) patch.color = args.color;
     if (args.leader !== undefined) patch.isLeader = Boolean(args.leader);
+    if (args.reportTo) patch.reportTo = args.reportTo;
+    if (args.handover !== undefined) patch.handover = Boolean(args.handover);
     if (args.speak) patch.speakMessage = args.speak;
 
     const res = await request(
