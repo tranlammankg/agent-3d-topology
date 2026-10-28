@@ -1,9 +1,13 @@
 /**
- * AgentOffice3D.js (v4.0 - Dynamic Morphing & Multi-Agent Topology Engine)
+ * AgentOffice3D.js (v4.2 - Dynamic Morphing, Cyber Sofa Gaming Lounge & 100% Handover Walk Engine)
  *
  * Interactive 3D Isometric Cyberpunk Office Visualization for Multi-Agent Systems & Swarms.
- * Zero external dependencies (Pure HTML5 Canvas 2D with Retina HiDPI, Touch Gestures,
- * Keyed State Reconciliation, Smooth Spatial Morphing, Floor Topology Conduits & Bilingual UI).
+ * Features:
+ * - Dynamic Topology Morphing (N = 1 to 50+: Solo, Semi-Arc, Radial Hub, Swarm Matrix)
+ * - Cyber Gaming Lounge & Sofa: Idle/Standby agents & finished agents walk to the sofa to play arcade games
+ * - 100% Milestone Physical Handover: Agents finishing 100% walk out of their desk carrying a 3D Data Cube
+ *   to the Leader/Orchestrator desk to hand over their report before heading to the sofa lounge!
+ * - Pure HTML5 Canvas 2D with Retina HiDPI, Multi-Touch Gestures, Floor Conduits & Bilingual UI.
  *
  * License: MIT
  */
@@ -44,7 +48,10 @@
       modeSolo: 'Trung Tâm Đơn (1)',
       modeArc: 'Bán Nguyệt (2-4)',
       modeHub: 'Radial Hub (5-12)',
-      modeMatrix: 'Swarm Matrix (13+)'
+      modeMatrix: 'Swarm Matrix (13+)',
+      loungeLabel: '🎮 SOFA GIẢI TRÍ',
+      handoverTag: '📦 Giao báo cáo 100%',
+      gamingTag: '🎮 Đang chơi game'
     },
     en: {
       agentsBadge: 'Agents',
@@ -72,7 +79,10 @@
       modeSolo: 'Solo Center (1)',
       modeArc: 'Semi-Arc (2-4)',
       modeHub: 'Radial Hub (5-12)',
-      modeMatrix: 'Swarm Matrix (13+)'
+      modeMatrix: 'Swarm Matrix (13+)',
+      loungeLabel: '🎮 GAMING LOUNGE',
+      handoverTag: '📦 Delivering 100%',
+      gamingTag: '🎮 Playing Game'
     }
   };
 
@@ -389,7 +399,6 @@
         onTopologyChange: null
       }, options);
 
-      // Master agent list & active morphing nodes
       this.agents = [];
       this.despawningAgents = [];
       this.selectedAgent = null;
@@ -407,8 +416,8 @@
       this.targetZoom = 1.05;
 
       // Dynamic Floor Morphing
-      this.currentFloorSize = 340;
-      this.targetFloorSize = 340;
+      this.currentFloorSize = 360;
+      this.targetFloorSize = 360;
 
       // Pointer & Touch State
       this.isDragging = false;
@@ -426,9 +435,10 @@
       this.isRightCollapsed = isMobile;
       this.isRightCompact = false;
 
-      // Active Speech Bubbles & Data Pulses
+      // Active Speech Bubbles, Floor Data Pulses & Handover Bursts
       this.bubbles = [];
       this.pulses = [];
+      this.handoverBursts = [];
       this._domUpdatePending = false;
 
       this._initDOM();
@@ -608,9 +618,32 @@
       return this.agents.filter(a => a.isLeader || (a.progress < 100 && !/done|completed|hoàn thành|xong/i.test(a.status)));
     }
 
+    _isAgentIdle(ag) {
+      if (!ag) return false;
+      if (/idle|rảnh|standby|waiting|chờ|relax|chơi|gaming|free/i.test(ag.status || '')) return true;
+      if (ag.progress === 0 && !ag.isLeaderComputed && !/working|coding|running|đang/i.test(ag.status || '')) return true;
+      return false;
+    }
+
+    _isAgentDone(ag) {
+      if (!ag) return false;
+      return ag.progress >= 100 || /done|completed|hoàn thành|xong/i.test(ag.status || '');
+    }
+
     /**
-     * Calculate Target 3D Coordinates for N visible agents
-     * Supports smooth transition between Solo (1) <-> Arc (2-4) <-> Radial Hub (5-12) <-> Swarm Matrix (13+)
+     * Trigger physical 100% Milestone Handover Walk from agent's desk to Leader/Target desk
+     */
+    triggerHandover(agentId, targetLeaderId = null) {
+      const ag = this.agents.find(a => a.id === String(agentId));
+      if (!ag || ag.isLeaderComputed) return;
+      ag.deliveringUntil = Date.now() + 3600;
+      ag.reportToId = targetLeaderId;
+      ag.handoverBurstSent = false;
+      this._emitDataPulse(ag.id);
+    }
+
+    /**
+     * Calculate Target 3D Coordinates for N visible workstations
      */
     _recomputeTargets() {
       const visible = this._getVisibleAgents();
@@ -619,11 +652,10 @@
       this._updateTopBadges();
 
       if (N === 0) {
-        this.targetFloorSize = 340;
+        this.targetFloorSize = 360;
         return;
       }
 
-      // Identify Leader
       let leaderIdx = visible.findIndex(a =>
         a.isLeader ||
         (a.role && /chỉ huy|leader|orchestrator|lead|master|architect|coordinator/i.test(a.role))
@@ -635,18 +667,18 @@
       });
 
       if (N === 1) {
-        visible[0].targetPos = { x: 0, y: 0, z: 0 };
+        visible[0].targetPos = { x: -30, y: 0, z: -10 };
         visible[0].targetDeskW = 74;
         visible[0].targetDeskD = 32;
         visible[0].screens = 3;
       } else if (N <= 4) {
-        const span = (N - 1) * 120;
+        const span = (N - 1) * 115;
         visible.forEach((ag, i) => {
           const t = N === 1 ? 0 : (i / (N - 1) - 0.5);
           ag.targetPos = {
-            x: t * span,
+            x: t * span - 25,
             y: Math.abs(t) * 14,
-            z: Math.abs(t) * 48 - 22
+            z: Math.abs(t) * 48 - 30
           };
           ag.targetDeskW = ag.isLeaderComputed ? 66 : 58;
           ag.targetDeskD = ag.isLeaderComputed ? 28 : 26;
@@ -654,7 +686,7 @@
       } else if (N <= 12) {
         const leader = leaderIdx !== -1 ? visible[leaderIdx] : null;
         if (leader) {
-          leader.targetPos = { x: 0, y: -24, z: -115 };
+          leader.targetPos = { x: -20, y: -24, z: -120 };
           leader.targetDeskW = 76;
           leader.targetDeskD = 32;
           leader.screens = 3;
@@ -662,15 +694,15 @@
 
         const others = visible.filter((_, idx) => idx !== leaderIdx);
         const count = others.length;
-        const radiusX = Math.max(165, count * 27);
-        const radiusZ = Math.max(115, count * 18);
+        const radiusX = Math.max(160, count * 26);
+        const radiusZ = Math.max(110, count * 17);
 
         others.forEach((ag, i) => {
           const angle = (Math.PI * 2 * i) / count + Math.PI / 2;
           ag.targetPos = {
-            x: Math.cos(angle) * radiusX,
-            y: Math.sin(angle) * 14 + 18,
-            z: Math.sin(angle) * radiusZ + 22
+            x: Math.cos(angle) * radiusX - 20,
+            y: Math.sin(angle) * 14 + 16,
+            z: Math.sin(angle) * radiusZ + 12
           };
           ag.targetDeskW = 54;
           ag.targetDeskD = 24;
@@ -678,7 +710,7 @@
       } else {
         const leader = leaderIdx !== -1 ? visible[leaderIdx] : null;
         if (leader) {
-          leader.targetPos = { x: 0, y: -48, z: -205 };
+          leader.targetPos = { x: -25, y: -48, z: -205 };
           leader.targetDeskW = 82;
           leader.targetDeskD = 34;
           leader.screens = 3;
@@ -693,19 +725,18 @@
           const rowInCol = row % 4;
           const totalRowsInCol = Math.min(4, rows);
           ag.targetPos = {
-            x: side * (125 + colOffset),
+            x: side * (120 + colOffset) - 25,
             y: (rowInCol - totalRowsInCol / 2) * 10,
-            z: (rowInCol - totalRowsInCol / 2) * 88 + 20
+            z: (rowInCol - totalRowsInCol / 2) * 86 + 15
           };
           ag.targetDeskW = 52;
           ag.targetDeskD = 24;
         });
       }
 
-      // Dynamic Floor Size & Elastic Auto-Framing Zoom
-      this.targetFloorSize = Math.max(340, Math.sqrt(N) * 120);
+      this.targetFloorSize = Math.max(360, Math.sqrt(N) * 125);
       if (!this.focusedAgentId) {
-        const idealZoom = Math.max(0.58, Math.min(1.18, 410 / this.targetFloorSize));
+        const idealZoom = Math.max(0.56, Math.min(1.15, 420 / this.targetFloorSize));
         this.targetZoom = idealZoom;
       }
 
@@ -719,9 +750,106 @@
     }
 
     /**
-     * Keyed State Reconciliation (Virtual-DOM style diffing for 3D Agents)
-     * Preserves existing agent positions, colors, selection, and bubbles while morphing!
+     * Compute Cyber Sofa Lounge coordinates and seat positions
      */
+    _getLoungeOrigin(floorSize) {
+      return {
+        x: floorSize * 0.56,
+        y: 52,
+        z: floorSize * 0.52
+      };
+    }
+
+    _getSofaSeatPos(seatIdx, totalSeated, floorSize) {
+      const origin = this._getLoungeOrigin(floorSize);
+      // L-shaped sofa seats along back & right side
+      const maxPerRow = 4;
+      const row = Math.floor(seatIdx / maxPerRow);
+      const col = seatIdx % maxPerRow;
+      const offsetX = (col - 1.5) * 26;
+      const offsetZ = row * 24;
+      return {
+        x: origin.x + offsetX,
+        y: origin.y - 6,
+        z: origin.z + 18 + offsetZ
+      };
+    }
+
+    /**
+     * Update Character Physical Target Coordinates (Sofa Gaming vs Working at Desk vs 100% Handover Walk)
+     */
+    _updateCharacterTargets() {
+      const now = Date.now();
+      const visible = this._getVisibleAgents();
+      if (visible.length === 0) return;
+
+      const leader = visible.find(a => a.isLeaderComputed) || visible[0];
+      const sofaAgents = [];
+
+      visible.forEach(ag => {
+        // 1. Check if agent is currently walking to Leader to hand over 100% milestone data
+        if (ag.deliveringUntil && now < ag.deliveringUntil && leader && ag.id !== leader.id) {
+          const targetAgent = (ag.reportToId && visible.find(a => a.id === ag.reportToId)) || leader;
+          ag.activityMode = 'delivering';
+          ag.targetCharPos = {
+            x: targetAgent.pos.x + 32,
+            y: targetAgent.pos.y + 4,
+            z: targetAgent.pos.z + 16
+          };
+
+          const distToLeader = Math.hypot(
+            ag.charPos.x - ag.targetCharPos.x,
+            ag.charPos.z - ag.targetCharPos.z
+          );
+          if (distToLeader < 18 && !ag.handoverBurstSent) {
+            ag.handoverBurstSent = true;
+            this.handoverBursts.push({
+              x: targetAgent.pos.x,
+              y: targetAgent.pos.y,
+              z: targetAgent.pos.z,
+              color: ag.color,
+              radius: 5,
+              alpha: 1.0
+            });
+          }
+          return;
+        }
+
+        // 2. Periodic spontaneous 100% check-in walk (lâu lâu đi ra bàn báo cáo)
+        if (!ag.isLeaderComputed && this._isAgentDone(ag) && leader && ag.id !== leader.id) {
+          if (!ag.nextReportAt) {
+            ag.nextReportAt = now + 14000 + Math.random() * 12000;
+          } else if (now >= ag.nextReportAt) {
+            ag.deliveringUntil = now + 3400;
+            ag.handoverBurstSent = false;
+            ag.nextReportAt = now + 18000 + Math.random() * 14000;
+            this._emitDataPulse(ag.id);
+            return;
+          }
+        }
+
+        // 3. If agent is Idle/Waiting OR finished 100% (after handover), go sit on the Sofa & play games!
+        const shouldGoSofa = !ag.isLeaderComputed && (this._isAgentIdle(ag) || (this._isAgentDone(ag) && (!ag.deliveringUntil || now >= ag.deliveringUntil)));
+        if (shouldGoSofa) {
+          ag.activityMode = 'sofa';
+          sofaAgents.push(ag);
+        } else {
+          // 4. Actively working -> Run back to workstation desk!
+          ag.activityMode = 'desk';
+          ag.targetCharPos = {
+            x: ag.pos.x,
+            y: ag.pos.y,
+            z: ag.pos.z
+          };
+        }
+      });
+
+      // Assign sofa seats to all relaxing/gaming agents
+      sofaAgents.forEach((ag, idx) => {
+        ag.targetCharPos = this._getSofaSeatPos(idx, sofaAgents.length, this.currentFloorSize);
+      });
+    }
+
     setAgents(agentsList) {
       if (!Array.isArray(agentsList)) return;
 
@@ -734,6 +862,7 @@
 
         if (prev) {
           existingMap.delete(id);
+          const prevProg = prev.progress;
           if (raw.name !== undefined) prev.name = raw.name;
           if (raw.role !== undefined) prev.role = raw.role;
           if (raw.status !== undefined) prev.status = raw.status;
@@ -743,22 +872,37 @@
           if (raw.color) prev.color = raw.color;
           if (raw.isLeader !== undefined) prev.isLeader = Boolean(raw.isLeader);
           if (raw.screens !== undefined) prev.screens = raw.screens;
+          if (raw.reportTo !== undefined) prev.reportToId = raw.reportTo;
+
+          // If just reached 100%, trigger handover walk to Leader!
+          if (prevProg < 100 && prev.progress >= 100 && !prev.isLeader) {
+            prev.deliveringUntil = Date.now() + 3800;
+            prev.handoverBurstSent = false;
+          }
           nextAgents.push(prev);
         } else {
           const color = raw.color || hashColor(id);
+          const initProg = typeof raw.progress === 'number' ? Math.max(0, Math.min(100, raw.progress)) : 100;
           nextAgents.push({
             id,
             name: raw.name || `Agent ${idx + 1}`,
             role: raw.role || this.t('defaultRole'),
             status: raw.status || this.t('defaultStatus'),
-            progress: typeof raw.progress === 'number' ? Math.max(0, Math.min(100, raw.progress)) : 100,
+            progress: initProg,
             desc: raw.desc || this.t('defaultDesc'),
             message: raw.message || this.t('defaultMsg'),
             color,
             screens: raw.screens || 2,
             isLeader: Boolean(raw.isLeader),
+            reportToId: raw.reportTo || null,
             pos: { x: 0, y: -30, z: 0 },
             targetPos: { x: 0, y: 0, z: 0 },
+            charPos: { x: 0, y: -30, z: 0 },
+            targetCharPos: { x: 0, y: 0, z: 0 },
+            activityMode: 'desk',
+            isWalking: false,
+            deliveringUntil: 0,
+            handoverBurstSent: false,
             deskW: 54,
             deskD: 24,
             targetDeskW: 54,
@@ -771,7 +915,6 @@
         }
       });
 
-      // Handle removed agents with Hologram Dissolve effect
       existingMap.forEach(removedAg => {
         this._triggerDespawn(removedAg);
       });
@@ -779,7 +922,6 @@
       this.agents = nextAgents;
       this._recomputeTargets();
 
-      // Snap initial position if first load
       this.agents.forEach(ag => {
         if (ag.spawnScale < 0.15 && ag.pos.x === 0 && ag.pos.z === 0) {
           ag.pos = {
@@ -787,10 +929,14 @@
             y: ag.targetPos.y,
             z: ag.targetPos.z * 0.65
           };
+          ag.charPos = {
+            x: ag.targetPos.x,
+            y: ag.targetPos.y,
+            z: ag.targetPos.z
+          };
         }
       });
 
-      // Maintain or fallback selection
       if (this.selectedAgent) {
         const stillThere = this.agents.find(a => a.id === this.selectedAgent.id);
         if (stillThere) {
@@ -808,9 +954,6 @@
       this._scheduleDOMUpdate();
     }
 
-    /**
-     * Dynamically Add or Update a single agent (Auto-Spawn & Smooth Morph)
-     */
     upsertAgent(agentData) {
       if (!agentData || !agentData.id) return;
       const id = String(agentData.id);
@@ -829,8 +972,12 @@
         if (agentData.color) existing.color = agentData.color;
         if (agentData.isLeader !== undefined) existing.isLeader = Boolean(agentData.isLeader);
         if (agentData.screens !== undefined) existing.screens = agentData.screens;
+        if (agentData.reportTo !== undefined) existing.reportToId = agentData.reportTo;
 
-        if (prevProg !== existing.progress) {
+        // Trigger physical 100% Milestone Handover Walk when hitting 100% or explicit handover flag!
+        if ((prevProg < 100 && existing.progress >= 100) || agentData.handover) {
+          this.triggerHandover(existing.id, agentData.reportTo);
+        } else if (prevProg !== existing.progress) {
           this._emitDataPulse(existing.id);
         }
 
@@ -843,19 +990,27 @@
         this._scheduleDOMUpdate();
       } else {
         const color = agentData.color || hashColor(id);
+        const initProg = typeof agentData.progress === 'number' ? Math.max(0, Math.min(100, agentData.progress)) : 0;
         const newAg = {
           id,
           name: agentData.name || id,
           role: agentData.role || this.t('defaultRole'),
           status: agentData.status || this.t('defaultStatus'),
-          progress: typeof agentData.progress === 'number' ? Math.max(0, Math.min(100, agentData.progress)) : 0,
+          progress: initProg,
           desc: agentData.desc || this.t('defaultDesc'),
           message: agentData.message || this.t('defaultMsg'),
           color,
           screens: agentData.screens || 2,
           isLeader: Boolean(agentData.isLeader),
+          reportToId: agentData.reportTo || null,
           pos: { x: 0, y: -35, z: 0 },
           targetPos: { x: 0, y: 0, z: 0 },
+          charPos: { x: 0, y: -35, z: 0 },
+          targetCharPos: { x: 0, y: 0, z: 0 },
+          activityMode: 'desk',
+          isWalking: false,
+          deliveringUntil: 0,
+          handoverBurstSent: false,
           deskW: 54,
           deskD: 24,
           targetDeskW: 54,
@@ -873,6 +1028,11 @@
           y: newAg.targetPos.y - 15,
           z: newAg.targetPos.z * 0.5
         };
+        newAg.charPos = {
+          x: newAg.targetPos.x,
+          y: newAg.targetPos.y,
+          z: newAg.targetPos.z
+        };
         this._emitDataPulse(newAg.id);
 
         if (!this.selectedAgent) {
@@ -886,16 +1046,10 @@
       }
     }
 
-    /**
-     * Update an existing agent or auto-upsert if not found
-     */
     updateAgent(agentId, data = {}) {
       this.upsertAgent(Object.assign({}, data, { id: agentId }));
     }
 
-    /**
-     * Remove an agent dynamically with Hologram Dissolve animation and re-layout remaining team
-     */
     removeAgent(agentId) {
       const id = String(agentId);
       const idx = this.agents.findIndex(a => a.id === id);
@@ -904,7 +1058,6 @@
       const [removed] = this.agents.splice(idx, 1);
       this._triggerDespawn(removed);
 
-      // Remove active speech bubble for this agent
       const bIdx = this.bubbles.findIndex(b => b.agentId === id);
       if (bIdx !== -1) {
         this.bubbles[bIdx].el.remove();
@@ -940,9 +1093,6 @@
       });
     }
 
-    /**
-     * Show 3D Floating Speech Bubble with countdown bar (XSS-safe & Viewport-clamped)
-     */
     speak(agentId, messageText, durationMs = 5000) {
       const id = String(agentId);
       const ag = this.agents.find(a => a.id === id);
@@ -1013,9 +1163,10 @@
       if (!ag) return;
       this.selectAgent(ag);
       this.focusedAgentId = ag.id;
-      this.targetRotX = 0.25;
-      this.targetRotY = -ag.targetPos.x * 0.0022;
-      this.targetZoom = 1.65;
+      const focusPos = ag.charPos || ag.targetPos;
+      this.targetRotX = 0.26;
+      this.targetRotY = -focusPos.x * 0.0022;
+      this.targetZoom = 1.62;
       this.speak(ag.id, ag.message || this.t('focusMsg'));
     }
 
@@ -1023,7 +1174,7 @@
       this.focusedAgentId = null;
       this.targetRotX = 0.40;
       this.targetRotY = -0.35;
-      this.targetZoom = Math.max(0.58, Math.min(1.18, 410 / this.targetFloorSize));
+      this.targetZoom = Math.max(0.56, Math.min(1.15, 420 / this.targetFloorSize));
     }
 
     _updateInspector(ag) {
@@ -1046,7 +1197,12 @@
         cardRole.style.color = ag.color;
       }
       if (cardDesc) cardDesc.textContent = ag.desc;
-      if (cardState) cardState.textContent = ag.status;
+      if (cardState) {
+        const modeSuffix = ag.activityMode === 'sofa'
+          ? ' (🎮 Sofa)'
+          : (ag.activityMode === 'delivering' ? ' (📦 Báo cáo)' : '');
+        cardState.textContent = `${ag.status}${modeSuffix}`;
+      }
       if (cardProg) {
         cardProg.textContent = `${ag.progress}%`;
         cardProg.style.color = ag.color;
@@ -1079,13 +1235,14 @@
         const safeName = escapeHtml(ag.name);
         const shortName = escapeHtml(formatShortName(ag.name, 14));
         const safeStatus = escapeHtml(ag.status);
+        const modeIcon = ag.activityMode === 'sofa' ? '🎮 ' : (ag.activityMode === 'delivering' ? '📦 ' : '');
 
         if (this.isLeftCompact) {
           row.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; font-family:monospace; font-size:11px;">
               <span style="display:flex; align-items:center; gap:5px; font-weight:700; color:#f8fafc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                 <span style="width:6px; height:6px; border-radius:50%; background:${safeColor}; flex-shrink:0;"></span>
-                ${shortName}
+                ${modeIcon}${shortName}
               </span>
               <span style="font-weight:700; color:${safeColor}; flex-shrink:0;">${ag.progress}%</span>
             </div>
@@ -1098,7 +1255,7 @@
             <div style="display:flex; justify-content:space-between; align-items:center; font-family:monospace; font-size:11px; margin-bottom:3px;">
               <span style="display:flex; align-items:center; gap:6px; font-weight:700; color:#f8fafc;">
                 <span style="width:8px; height:8px; border-radius:50%; background:${safeColor};"></span>
-                ${safeName}
+                ${modeIcon}${safeName}
               </span>
               <span style="font-weight:700; color:${safeColor};">${ag.progress}%</span>
             </div>
@@ -1160,15 +1317,19 @@
       const mouseY = clientY - rect.top;
       const visible = this._getVisibleAgents();
 
-      // Check front-to-back (closest depth first)
       const sorted = visible
-        .map(a => ({ agent: a, proj: this._project3D(a.pos) }))
-        .sort((a, b) => a.proj.depth - b.proj.depth);
+        .map(a => ({
+          agent: a,
+          deskProj: this._project3D(a.pos),
+          charProj: this._project3D(a.charPos || a.pos)
+        }))
+        .sort((a, b) => Math.min(a.deskProj.depth, a.charProj.depth) - Math.min(b.deskProj.depth, b.charProj.depth));
 
-      for (const { agent, proj } of sorted) {
-        const dw = (agent.deskW || 52) * proj.scale;
-        const dist = Math.hypot(mouseX - proj.screenX, mouseY - (proj.screenY - 12 * proj.scale));
-        if (dist <= dw * 0.78 + 12) {
+      for (const { agent, deskProj, charProj } of sorted) {
+        const dw = (agent.deskW || 52) * deskProj.scale;
+        const distDesk = Math.hypot(mouseX - deskProj.screenX, mouseY - (deskProj.screenY - 12 * deskProj.scale));
+        const distChar = Math.hypot(mouseX - charProj.screenX, mouseY - (charProj.screenY - 15 * charProj.scale));
+        if (distDesk <= dw * 0.78 + 12 || distChar <= 28 * charProj.scale + 10) {
           return agent;
         }
       }
@@ -1179,7 +1340,6 @@
       this._onResize = () => this._resizeCanvas();
       window.addEventListener('resize', this._onResize);
 
-      // Mouse Controls
       this.canvas.addEventListener('mousedown', (e) => {
         this.isDragging = true;
         this.dragMoved = false;
@@ -1222,7 +1382,7 @@
         this.targetZoom = Math.max(0.45, Math.min(2.8, this.targetZoom + e.deltaY * -0.0014));
       }, { passive: false });
 
-      // Multi-Touch Support (Mobile & Tablet)
+      // Multi-Touch Support
       this.canvas.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
           this.isDragging = true;
@@ -1270,7 +1430,6 @@
         this.pinchDist = 0;
       });
 
-      // Top Bar Buttons
       const filterBtn = this.container.querySelector('#ao3dFilterDoneBtn');
       const filterTxt = this.container.querySelector('#ao3dFilterDoneText');
       if (filterBtn) {
@@ -1298,7 +1457,6 @@
         resetBtn.addEventListener('click', () => this.resetCamera());
       }
 
-      // Left Dock Controls
       const leftDock = this.container.querySelector('#ao3dLeftDock');
       const reopenLeftBtn = this.container.querySelector('#ao3dReopenLeftBtn');
       const leftCloseBtn = this.container.querySelector('#ao3dLeftCloseBtn');
@@ -1321,7 +1479,6 @@
         this._scheduleDOMUpdate();
       });
 
-      // Right Inspector Controls
       const inspectorCard = this.container.querySelector('#ao3dInspectorCard');
       const reopenRightBtn = this.container.querySelector('#ao3dReopenRightBtn');
       const rightCloseBtn = this.container.querySelector('#ao3dRightCloseBtn');
@@ -1376,29 +1533,47 @@
           this.targetRotY += 0.0022;
         }
 
-        // Track focused agent if its desk morphed to a new coordinate
+        // Update character behavioral targets (Desk vs Sofa Gaming Lounge vs 100% Handover Walk)
+        this._updateCharacterTargets();
+
         if (this.focusedAgentId && !this.isDragging) {
           const fAg = this.agents.find(a => a.id === this.focusedAgentId);
           if (fAg) {
-            this.targetRotY = -fAg.pos.x * 0.0022;
+            const trackPos = fAg.charPos || fAg.pos;
+            this.targetRotY = -trackPos.x * 0.0022;
           }
         }
 
-        // Smooth Camera & Floor Interpolation (Lerp)
+        // Smooth Camera & Floor Interpolation
         const camLerp = 0.12;
         this.rotX += (this.targetRotX - this.rotX) * camLerp;
         this.rotY += (this.targetRotY - this.rotY) * camLerp;
         this.zoom += (this.targetZoom - this.zoom) * camLerp;
         this.currentFloorSize += (this.targetFloorSize - this.currentFloorSize) * 0.08;
 
-        // Smooth Agent Position Morphing & Spawn/Despawn Animations
+        // Smooth Workstation Morphing & Character Walking Locomotion
         const posLerp = 0.11;
+        const walkLerp = 0.075;
         this.agents.forEach(ag => {
           ag.pos.x += (ag.targetPos.x - ag.pos.x) * posLerp;
           ag.pos.y += (ag.targetPos.y - ag.pos.y) * posLerp;
           ag.pos.z += (ag.targetPos.z - ag.pos.z) * posLerp;
           ag.deskW += (ag.targetDeskW - ag.deskW) * posLerp;
           ag.deskD += (ag.targetDeskD - ag.deskD) * posLerp;
+
+          if (!ag.charPos) ag.charPos = { x: ag.pos.x, y: ag.pos.y, z: ag.pos.z };
+          if (!ag.targetCharPos) ag.targetCharPos = { x: ag.pos.x, y: ag.pos.y, z: ag.pos.z };
+
+          const dx = ag.targetCharPos.x - ag.charPos.x;
+          const dy = ag.targetCharPos.y - ag.charPos.y;
+          const dz = ag.targetCharPos.z - ag.charPos.z;
+          const dist = Math.hypot(dx, dy, dz);
+
+          ag.isWalking = dist > 5.5;
+          ag.charPos.x += dx * walkLerp;
+          ag.charPos.y += dy * walkLerp;
+          ag.charPos.z += dz * walkLerp;
+
           if (ag.spawnScale < 1) {
             ag.spawnScale = Math.min(1, ag.spawnScale + 0.06);
           }
@@ -1418,6 +1593,14 @@
           this.pulses[i].progress += this.pulses[i].speed;
           if (this.pulses[i].progress >= 1) {
             this.pulses.splice(i, 1);
+          }
+        }
+
+        for (let i = this.handoverBursts.length - 1; i >= 0; i--) {
+          this.handoverBursts[i].radius += 2.2;
+          this.handoverBursts[i].alpha -= 0.04;
+          if (this.handoverBursts[i].alpha <= 0) {
+            this.handoverBursts.splice(i, 1);
           }
         }
 
@@ -1441,16 +1624,78 @@
       // 2. Draw 3D Topology Conduits & Data Packets between Leader & Workers
       this._drawTopologyConduits(visible);
 
-      // 3. Z-Sort all visible + despawning workstations
-      const renderItems = visible.map(a => ({ agent: a, proj: this._project3D(a.pos), isDespawning: false }));
-      this.despawningAgents.forEach(da => {
-        renderItems.push({ agent: da, proj: this._project3D(da.pos), isDespawning: true });
-      });
-      renderItems.sort((a, b) => b.proj.depth - a.proj.depth);
+      // 3. Collect all 3D Renderables (Sofa Lounge + Workstations + Roaming/Seated Characters) for accurate Z-Sorting!
+      const renderables = [];
 
-      // 4. Draw Workstations & Seated Humanoid Agents
-      renderItems.forEach(({ agent, proj, isDespawning }) => {
-        this._drawWorkstation(agent, proj, isDespawning);
+      // 3a. Add Cyber Sofa Gaming Lounge
+      const loungePos = this._getLoungeOrigin(this.currentFloorSize);
+      const loungeProj = this._project3D(loungePos);
+      renderables.push({
+        type: 'sofa_lounge',
+        depth: loungeProj.depth + 8,
+        proj: loungeProj
+      });
+
+      // 3b. Add Workstations & Characters
+      visible.forEach(ag => {
+        const deskProj = this._project3D(ag.pos);
+        const charProj = this._project3D(ag.charPos || ag.pos);
+        const isAtDesk = !ag.isWalking && ag.activityMode === 'desk';
+
+        renderables.push({
+          type: 'workstation',
+          agent: ag,
+          proj: deskProj,
+          depth: deskProj.depth,
+          hasSeatedOwner: isAtDesk,
+          isDespawning: false
+        });
+
+        if (!isAtDesk) {
+          renderables.push({
+            type: 'roaming_character',
+            agent: ag,
+            proj: charProj,
+            depth: charProj.depth - 2
+          });
+        }
+      });
+
+      this.despawningAgents.forEach(da => {
+        const proj = this._project3D(da.pos);
+        renderables.push({
+          type: 'workstation',
+          agent: da,
+          proj,
+          depth: proj.depth,
+          hasSeatedOwner: true,
+          isDespawning: true
+        });
+      });
+
+      renderables.sort((a, b) => b.depth - a.depth);
+
+      renderables.forEach(item => {
+        if (item.type === 'sofa_lounge') {
+          this._drawSofaLounge(item.proj);
+        } else if (item.type === 'workstation') {
+          this._drawWorkstation(item.agent, item.proj, item.hasSeatedOwner, item.isDespawning);
+        } else if (item.type === 'roaming_character') {
+          this._drawRoamingOrSofaAgent(item.agent, item.proj);
+        }
+      });
+
+      // 4. Draw Handover Burst Rings at Leader Desk
+      this.handoverBursts.forEach(b => {
+        const p = this._project3D({ x: b.x, y: b.y, z: b.z });
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(p.screenX, p.screenY, b.radius * p.scale, b.radius * 0.55 * p.scale, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = b.color;
+        ctx.globalAlpha = Math.max(0, b.alpha);
+        ctx.lineWidth = 2.5 * p.scale;
+        ctx.stroke();
+        ctx.restore();
       });
     }
 
@@ -1493,6 +1738,93 @@
       }
     }
 
+    /**
+     * Draw Cyberpunk Sofa & Holographic Arcade Gaming Lounge in the relaxation corner
+     */
+    _drawSofaLounge(proj) {
+      const ctx = this.ctx;
+      const s = proj.scale;
+      const cx = proj.screenX;
+      const cy = proj.screenY;
+
+      ctx.save();
+
+      // 1. Glowing Cyber Lounge Rug
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 18 * s, 78 * s, 42 * s, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(236, 72, 153, 0.12)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(236, 72, 153, 0.45)';
+      ctx.lineWidth = 1.5 * s;
+      ctx.stroke();
+
+      // 2. Holographic Arcade Gaming TV Screen (Front of Sofa)
+      const tvX = cx;
+      const tvY = cy - 16 * s;
+      const tvW = 54 * s;
+      const tvH = 26 * s;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+      ctx.strokeStyle = '#ec4899';
+      ctx.lineWidth = 1.8 * s;
+      ctx.shadowColor = '#ec4899';
+      ctx.shadowBlur = 10 * s;
+      ctx.beginPath();
+      ctx.roundRect(tvX - tvW / 2, tvY - tvH, tvW, tvH, 4 * s);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Animated Arcade Pong / Cyber Game on TV Screen
+      const ballX = tvX + Math.sin(this.time * 3.5) * (tvW * 0.34);
+      const ballY = (tvY - tvH * 0.5) + Math.cos(this.time * 5.2) * (tvH * 0.28);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(tvX - tvW * 0.42, (tvY - tvH * 0.65) + Math.sin(this.time * 3.5) * 4 * s, 3 * s, 9 * s);
+      ctx.fillStyle = '#34d399';
+      ctx.fillRect(tvX + tvW * 0.39, (tvY - tvH * 0.65) - Math.sin(this.time * 3.5) * 4 * s, 3 * s, 9 * s);
+      ctx.beginPath();
+      ctx.arc(ballX, ballY, 2.6 * s, 0, Math.PI * 2);
+      ctx.fillStyle = '#fbbf24';
+      ctx.fill();
+
+      // 3. Low Cyber Coffee Table
+      ctx.fillStyle = '#1e1b4b';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.2 * s;
+      ctx.beginPath();
+      ctx.roundRect(cx - 28 * s, cy - 2 * s, 56 * s, 12 * s, 4 * s);
+      ctx.fill();
+      ctx.stroke();
+
+      // 4. Plush Cyberpunk Curved Sofa (Backrest + Seat Cushion + Neon Trim)
+      const sofaY = cy + 16 * s;
+      const sofaW = 112 * s;
+      const sofaH = 22 * s;
+
+      // Sofa Backrest
+      ctx.fillStyle = '#311042';
+      ctx.strokeStyle = '#f472b6';
+      ctx.lineWidth = 1.6 * s;
+      ctx.beginPath();
+      ctx.roundRect(cx - sofaW / 2, sofaY - 12 * s, sofaW, 14 * s, 6 * s);
+      ctx.fill();
+      ctx.stroke();
+
+      // Sofa Seat Cushion
+      ctx.fillStyle = '#4a1d66';
+      ctx.beginPath();
+      ctx.roundRect(cx - sofaW / 2 + 4 * s, sofaY - 2 * s, sofaW - 8 * s, sofaH * 0.65, 5 * s);
+      ctx.fill();
+
+      // 5. Floating Lounge Sign
+      ctx.font = `bold ${Math.max(9, Math.round(10 * s))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#f472b6';
+      ctx.fillText(this.t('loungeLabel'), cx, tvY - tvH - 7 * s);
+
+      ctx.restore();
+    }
+
     _drawTopologyConduits(visible) {
       if (visible.length < 2) return;
       const ctx = this.ctx;
@@ -1507,7 +1839,6 @@
         const wPos = { x: ag.pos.x, y: 72, z: ag.pos.z };
         const pWorker = this._project3D(wPos);
 
-        // Glowing Conduit Line on Floor
         ctx.beginPath();
         ctx.moveTo(pLeader.screenX, pLeader.screenY);
         ctx.lineTo(pWorker.screenX, pWorker.screenY);
@@ -1515,7 +1846,6 @@
         ctx.lineWidth = 1.6;
         ctx.stroke();
 
-        // Ambient Flowing Synapse Dot
         const t = ((this.time * 0.45 + ag.phase) % 1);
         const dotX = pLeader.screenX + (pWorker.screenX - pLeader.screenX) * t;
         const dotY = pLeader.screenY + (pWorker.screenY - pLeader.screenY) * t;
@@ -1525,7 +1855,6 @@
         ctx.fill();
       });
 
-      // Active High-Speed Data Pulses (triggered when agents speak or update progress)
       this.pulses.forEach(pulse => {
         const target = visible.find(a => a.id === pulse.targetId);
         if (!target || target.id === leader.id) return;
@@ -1544,7 +1873,7 @@
       });
     }
 
-    _drawWorkstation(agent, proj, isDespawning = false) {
+    _drawWorkstation(agent, proj, hasSeatedOwner = true, isDespawning = false) {
       const ctx = this.ctx;
       const spawnScale = isDespawning ? agent.despawnAlpha : (agent.spawnScale || 1);
       const s = proj.scale * spawnScale;
@@ -1560,7 +1889,7 @@
 
       const isSel = this.selectedAgent && this.selectedAgent.id === agent.id;
       const isHov = this.hoveredAgent && this.hoveredAgent.id === agent.id;
-      const isDone = agent.progress >= 100 || /done|completed|hoàn thành|xong/i.test(agent.status);
+      const isDone = this._isAgentDone(agent);
       const isError = /error|fail|lỗi|blocked/i.test(agent.status);
 
       const dw = (agent.deskW || 52) * s;
@@ -1622,19 +1951,145 @@
       ctx.fillRect(cx - 10 * s, deskY - 3 * s, 20 * s, 6.5 * s);
       ctx.shadowBlur = 0;
 
-      // 5. Seated Humanoid Character (with animated typing arms)
-      this._drawHumanoidAgent(agent, cx, deskY, s, !isDone && !isError);
+      // 5. Draw Either Seated Humanoid Agent OR Empty Ergonomic Chair (when agent is at Sofa or Delivering!)
+      if (hasSeatedOwner) {
+        this._drawHumanoidAgent(agent, cx, deskY, s, !isDone && !isError);
+      } else {
+        const seatY = deskY + 2 * s;
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.7)';
+        ctx.beginPath();
+        ctx.roundRect(cx - 11 * s, seatY - 16 * s, 22 * s, 20 * s, 5 * s);
+        ctx.fill();
+      }
 
-      // 6. Floating Hologram Screens (with animated code lines)
-      this._drawHologramScreens(agent, cx, deskY, dw, dd, s, !isDone);
+      // 6. Floating Hologram Screens
+      this._drawHologramScreens(agent, cx, deskY, dw, dd, s, hasSeatedOwner && !isDone);
 
-      // 7. Floating Name & Status Tag above Head
-      const labelY = deskY - 43 * s;
-      ctx.font = `bold ${Math.max(10, Math.round(11 * s))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      // 7. Desk Name Label (if seated here)
+      if (hasSeatedOwner) {
+        const labelY = deskY - 43 * s;
+        ctx.font = `bold ${Math.max(10, Math.round(11 * s))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = isSel ? '#38bdf8' : '#f1f5f9';
+        const displayLabel = formatShortName(agent.name, 14) + (isDone ? ' ✓' : (isError ? ' ⚠' : ''));
+        ctx.fillText(displayLabel, cx, labelY);
+      }
+
+      ctx.restore();
+    }
+
+    /**
+     * Draw an Agent who is either Walking Across the Floor, Handing Over 100% Data Cube, or Sitting on the Sofa Playing Games!
+     */
+    _drawRoamingOrSofaAgent(agent, proj) {
+      const ctx = this.ctx;
+      const s = proj.scale * (agent.spawnScale || 1);
+      if (s <= 0.02) return;
+
+      const cx = proj.screenX;
+      const cy = proj.screenY;
+      const isSel = this.selectedAgent && this.selectedAgent.id === agent.id;
+      const isWalking = agent.isWalking;
+      const isDelivering = agent.activityMode === 'delivering';
+      const isSofa = agent.activityMode === 'sofa' && !isWalking;
+
+      ctx.save();
+
+      const stride = isWalking ? Math.sin(this.time * 11 + (agent.phase || 0)) : 0;
+      const bob = isWalking ? Math.abs(stride) * 3.5 * s : (isSofa ? Math.sin(this.time * 4 + (agent.phase || 0)) * 0.8 * s : 0);
+      const baseY = cy + 6 * s - bob;
+      const headY = baseY - 22 * s;
+
+      // Shadow under feet
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 16 * s, 11 * s, 5 * s, 0, 0, Math.PI * 2);
+      ctx.fillStyle = isSel ? 'rgba(56, 189, 248, 0.35)' : 'rgba(0, 0, 0, 0.45)';
+      ctx.fill();
+
+      // Animated Legs (Walking vs Seated on Sofa)
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 3 * s;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      if (isWalking) {
+        ctx.moveTo(cx - 4 * s, baseY);
+        ctx.lineTo(cx - 4 * s + stride * 5 * s, cy + 14 * s);
+        ctx.moveTo(cx + 4 * s, baseY);
+        ctx.lineTo(cx + 4 * s - stride * 5 * s, cy + 14 * s);
+      } else {
+        // Seated relaxed legs on sofa
+        ctx.moveTo(cx - 5 * s, baseY);
+        ctx.lineTo(cx - 7 * s, baseY + 9 * s);
+        ctx.moveTo(cx + 5 * s, baseY);
+        ctx.lineTo(cx + 7 * s, baseY + 9 * s);
+      }
+      ctx.stroke();
+
+      // Torso
+      ctx.fillStyle = agent.color;
+      ctx.beginPath();
+      ctx.roundRect(cx - 8.5 * s, baseY - 13 * s, 17 * s, 15 * s, 4 * s);
+      ctx.fill();
+
+      // Head
+      ctx.beginPath();
+      ctx.arc(cx, headY, 6.5 * s, 0, Math.PI * 2);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fill();
+
+      // Cyber Visor
+      ctx.fillStyle = agent.color;
+      ctx.shadowColor = agent.color;
+      ctx.shadowBlur = 8 * s;
+      ctx.beginPath();
+      ctx.roundRect(cx - 5.5 * s, headY - 1.5 * s, 11 * s, 3.5 * s, 1.5 * s);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Arms & Props (3D Data Cube when Delivering 100% vs Gamepad Controller on Sofa!)
+      if (isDelivering) {
+        // Arms holding out glowing 3D Data Cube (📦 100%)
+        const cubeY = baseY - 7 * s + Math.sin(this.time * 6) * 2 * s;
+        ctx.fillStyle = '#10b981';
+        ctx.strokeStyle = '#a7f3d0';
+        ctx.lineWidth = 1.4 * s;
+        ctx.shadowColor = '#10b981';
+        ctx.shadowBlur = 12 * s;
+        ctx.beginPath();
+        ctx.roundRect(cx - 7 * s, cubeY - 6 * s, 14 * s, 11 * s, 2.5 * s);
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Tag above head: "📦 Giao báo cáo 100%"
+        ctx.font = `bold ${Math.max(9, Math.round(9.5 * s))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#34d399';
+        ctx.fillText(this.t('handoverTag'), cx, headY - 21 * s);
+      } else if (isSofa) {
+        // Holding glowing Gamepad Controller on Sofa
+        const padTilt = Math.sin(this.time * 9 + (agent.phase || 0)) * 1.6 * s;
+        ctx.fillStyle = '#0f172a';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.3 * s;
+        ctx.beginPath();
+        ctx.roundRect(cx - 7 * s, baseY - 6 * s + padTilt, 14 * s, 6 * s, 3 * s);
+        ctx.fill();
+        ctx.stroke();
+
+        // Tiny glowing buttons on gamepad
+        ctx.fillStyle = '#f43f5e';
+        ctx.fillRect(cx + 2 * s, baseY - 4.5 * s + padTilt, 2.2 * s, 2.2 * s);
+        ctx.fillStyle = '#34d399';
+        ctx.fillRect(cx - 4 * s, baseY - 4.5 * s + padTilt, 2.2 * s, 2.2 * s);
+      }
+
+      // Floating Name Tag above Character
+      ctx.font = `bold ${Math.max(10, Math.round(10.5 * s))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
       ctx.textAlign = 'center';
       ctx.fillStyle = isSel ? '#38bdf8' : '#f1f5f9';
-      const displayLabel = formatShortName(agent.name, 14) + ( isDone ? ' ✓' : (isError ? ' ⚠' : '') );
-      ctx.fillText(displayLabel, cx, labelY);
+      const prefix = isSofa ? '🎮 ' : (isDelivering ? '📦 ' : '');
+      ctx.fillText(`${prefix}${formatShortName(agent.name, 13)}`, cx, headY - 10 * s);
 
       ctx.restore();
     }
@@ -1712,7 +2167,6 @@
         ctx.stroke();
         ctx.shadowBlur = 0;
 
-        // Animated scrolling code lines
         const wave = isActive ? (Math.sin(this.time * 4 + idx + (agent.phase || 0)) + 1) * 0.15 : 0;
         ctx.fillStyle = agent.color;
         ctx.fillRect(sx - screenW * 0.38, screenBaseY - screenH * 0.75, screenW * (0.45 + wave), 1.5 * s);
@@ -1740,8 +2194,8 @@
           continue;
         }
 
-        const proj = this._project3D(ag.pos);
-        // Clamp within viewport bounds so bubbles never clip off-screen
+        // Speech bubble follows the character's physical position (Desk, Walking, or Sofa!)
+        const proj = this._project3D(ag.charPos || ag.pos);
         const clampedX = Math.max(135, Math.min(this.width - 135, proj.screenX));
         const clampedY = Math.max(95, Math.min(this.height - 55, proj.screenY - 48 * proj.scale));
         b.el.style.left = `${clampedX}px`;
