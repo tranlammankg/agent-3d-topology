@@ -43,7 +43,15 @@ When updating agents in the 3D office, control their physical movement across th
 By default, the server runs on `http://localhost:3300` (or the URL in `$AGENT_3D_URL`).
 You can use the bundled `scripts/push_3d.js` helper (which automatically remembers `sessionId` and `authToken` in `~/.agent-3d-session.json`) OR call `/api/push` directly with `curl`.
 
-### Using the Skill CLI Helper (`scripts/push_3d.js`)
+### Quick N-Agent Live Simulation (`simulate --count <N>`)
+
+Whenever the user asks to simulate or demo $N$ running agents (e.g., *"giả lập 7 agent đang chạy"*), run this single command (it spawns a detached background choreography so it returns `viewUrl` immediately):
+
+```bash
+node ~/.gemini/config/skills/agent-3d-topology/scripts/push_3d.js simulate --count 7 --open
+```
+
+### Step-by-Step Control Using the Skill CLI Helper (`scripts/push_3d.js`)
 
 ```bash
 # 1. Initialize a new 3D session (returns viewUrl to share with the user!)
