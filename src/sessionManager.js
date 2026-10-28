@@ -453,9 +453,9 @@ class SessionManager {
           agentCount: s.agents.length,
           totalProgress,
           createdAt: s.createdAt,
-          updatedAt: s.updatedAt,
-          // Include viewUrl token only if publicView is enabled
-          viewTokenHint: s.publicView ? s.viewToken : undefined
+          updatedAt: s.updatedAt
+          // NOTE: never expose viewToken here. A publicView room needs no token to be
+          // watched, and a private room's token must not leak through a summary listing.
         };
       });
   }
