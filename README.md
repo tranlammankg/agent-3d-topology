@@ -123,6 +123,8 @@ Add the following to your `mcp_config.json` or `claude_desktop_config.json`:
 ```
 *(If your server is hosted remotely or via Cloudflare Tunnel, set `AGENT_3D_URL` to `https://your-domain.com`. You can also connect directly to the Streamable HTTP MCP endpoint at `https://your-domain.com/mcp`).*
 
+> **Note on the HTTP `/mcp` endpoint:** when `MASTER_API_KEY` is configured, `/mcp` requires it too (`Authorization: Bearer <MASTER_API_KEY>`), because it drives the same tools as the REST API. The endpoint is also stateful per client: `initialize` returns an `Mcp-Session-Id` header that your client must echo on subsequent calls, so two clients never share a session. The STDIO transport is unaffected — it is one process per client.
+
 ### Available MCP Tools (with Stateful Auto-Session Context)
 The MCP server automatically remembers the active `sessionId` and `authToken`, so the LLM does not need to repeat tokens on every call:
 
