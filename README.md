@@ -75,9 +75,11 @@ flowchart LR
 git clone https://github.com/tranlammankg/agent-3d-topology.git
 cd agent-3d-topology
 
-# Build and start in background (Default port: 3300)
+# 1. Build and start the 3D Server in background (Default port: 3300)
 npm run docker:up
-# Or directly: docker compose up -d --build
+
+# 2. Install the bundled AI Skill (into ~/.gemini/config/skills & ~/.claude/skills)
+npm run install-skill
 ```
 
 Open **`http://localhost:3300`** in your browser and click **"🚀 Run Live Swarm Morphing Demo"** to watch a live team dynamically scale from $1 \to 4 \to 8 \to 14 \to 6$ agents!
@@ -226,8 +228,11 @@ Hệ thống được tối ưu hóa để chạy ngầm 24/7 trên **Mac mini (
 git clone https://github.com/tranlammankg/agent-3d-topology.git
 cd agent-3d-topology
 
-# Tự động dọn file rác macOS và khởi chạy Docker Container ở cổng 3300
+# 1. Tự động dọn file rác macOS và khởi chạy Docker Container ở cổng 3300
 npm run docker:up
+
+# 2. Cài đặt tự động AI Skill đi kèm vào máy (~/.gemini/config/skills & ~/.claude/skills)
+npm run install-skill
 ```
 
 Sau khi chạy xong, mở trình duyệt tại **`http://localhost:3300`** và nhấn nút **"🚀 Chạy Mô Phỏng Swarm Biến Hình (N: 1→14→5)"** để xem trực tiếp hiệu ứng biến đổi đội hình 3D!

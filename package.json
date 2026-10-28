@@ -13,6 +13,7 @@
     "mcp": "node src/mcp/index.js",
     "demo": "node scripts/demo_simulation.js",
     "export-html": "node scripts/generate_topology.js",
+    "install-skill": "node scripts/install_skill.js",
     "test": "node scripts/test_e2e.js",
     "docker:up": "dot_clean -m . 2>/dev/null || true; find . -name '._*' -delete 2>/dev/null || true; docker compose up -d --build",
     "docker:down": "docker compose down",
