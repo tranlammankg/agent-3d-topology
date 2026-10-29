@@ -1,0 +1,21 @@
+<title>Agent Topology Live</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: full-bleed 3D office, slim status strip on top. Single committed dark look (cyber control room). */
+:root{--bg:#020617;--panel:#0b1226;--line:#1e2a4a;--fg:#e2e8f0;--muted:#8392b3;--accent:#38bdf8;--ok:#34d399;--warn:#fbbf24;
+ --display:"Chakra Petch","Segoe UI",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--display);overflow:hidden;display:flex;flex-direction:column}
+.bar{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;justify-content:space-between;padding-block:8px;
+ padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+ background:var(--panel);border-bottom:1px solid var(--line);font-size:13px}
+.bar h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.04em;min-width:0}
+.bar .meta{font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap}
+.back{color:var(--accent);text-decoration:none}.back:hover,.back:focus-visible{text-decoration:underline}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-right:6px}
+.dot.live{background:var(--ok)}
+#viewport{flex:1;min-height:0;position:relative}
+#hint{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted);font-size:14px;pointer-events:none}
+#hint.show{display:flex}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=JetBrains+Mono&display=swap">

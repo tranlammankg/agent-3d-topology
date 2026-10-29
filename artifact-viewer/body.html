@@ -1,0 +1,36 @@
+<div class="bar"><h1 id="title">Agent Topology Live</h1>
+ <div class="meta"><span><i class="dot" id="dot"></i><span id="state">đang kết nối…</span></span><span id="count">0 agent</span><span id="upd"></span><a class="back" id="back" hidden target="_blank" rel="noopener">Phiên Claude ↗</a></div></div>
+<div id="viewport"><div id="hint">Chưa có agent nào. Claude sẽ ghi trạng thái agent vào bảng <code>agents</code> và phòng 3D sẽ tự cập nhật.</div></div>
+<script>
+const office = new AgentOffice3D('#viewport', {title:'Agent 3D Topology', autoRotate:true});
+const $ = id => document.getElementById(id);
+const lastMsg = new Map();
+function setState(live, text){ $('dot').className = 'dot' + (live?' live':''); $('state').textContent = text; }
+function render(rows){
+  const agents = rows.map(r => ({id:r.id, name:r.name, role:r.role, progress:r.progress, status:r.status,
+    isLeader:!!r.isLeader, reportTo:r.reportTo, handover:!!r.handover, message:r.message, desc:r.desc}));
+  office.setAgents(agents);
+  $('count').textContent = agents.length + ' agent';
+  $('hint').classList.toggle('show', agents.length === 0);
+  let newest = 0;
+  rows.forEach(r => {
+    newest = Math.max(newest, r.updatedAt || 0);
+    if (r.speak && r.speakAt && lastMsg.get(r.id) !== r.speakAt) {
+      if (lastMsg.has(r.id)) office.speak(r.id, r.speak);   // skip bubbles that predate this view
+      lastMsg.set(r.id, r.speakAt);
+    }
+  });
+  if (newest) $('upd').textContent = 'cập nhật ' + new Date(newest).toLocaleTimeString();
+}
+(async () => {
+  let db = null;
+  try { db = await claude.use('db'); } catch (e) {}
+  if (!db) { setState(false, 'không có kết nối dữ liệu'); $('hint').classList.add('show'); return; }
+  db.doc('meta/session').onSnapshot(s => { const d = s.exists && s.data(); if (!d) return; if (d.title) $('title').textContent = d.title;
+    if (typeof d.sessionUrl === 'string' && d.sessionUrl.startsWith('https://claude.ai/')) { $('back').href = d.sessionUrl; $('back').hidden = false; } else $('back').hidden = true; });
+  db.collection('agents').onSnapshot(snap => {
+    setState(true, 'trực tiếp');
+    render(snap.docs.map(d => Object.assign({id:d.id}, d.data())));
+  }, () => setState(false, 'mất kết nối'));
+})();
+</script>

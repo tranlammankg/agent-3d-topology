@@ -25,3 +25,4 @@ data/
 
 # Generated static exports
 topology_export*.html
+artifact-viewer/live.html
