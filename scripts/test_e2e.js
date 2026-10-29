@@ -2,6 +2,15 @@
 'use strict';
 
 const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+// Isolate the suite from the real ./data directory BEFORE src/config.js is loaded,
+// so runs are hermetic and repeatable instead of inheriting the previous run's sessions.
+const TMP_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent3d-test-'));
+process.env.DATA_DIR = TMP_DATA_DIR;
+
 const WebSocket = require('ws');
 const { server } = require('../src/server');
 const { TOOLS, handleToolCall } = require('../src/mcp/index');
@@ -118,7 +127,43 @@ async function runTests() {
     assert.ok(pushRes.status === 200 || pushRes.status === 201);
     const pushed = await pushRes.json();
     assert.strictEqual(pushed.agentCount, 2);
-    console.log('  ✓ [4/6] Universal One-Call Webhook (/api/push) passed');
+    assert.ok(pushed.authToken, 'Creating a room via /api/push must return its authToken');
+
+    // Updating an EXISTING room without its authToken must be rejected (401)
+    const anonPush = await fetch(`${baseUrl}/api/push`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'quick-push-room',
+        agent: { id: 'a1', name: 'Hijacked' }
+      })
+    });
+    assert.strictEqual(anonPush.status, 401, 'Anonymous write to an existing push room must be 401');
+
+    // The same update WITH the authToken must succeed
+    const authPush = await fetch(`${baseUrl}/api/push`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${pushed.authToken}`
+      },
+      body: JSON.stringify({
+        sessionId: 'quick-push-room',
+        agent: { id: 'a3', name: 'Authorized Worker', progress: 10 }
+      })
+    });
+    assert.strictEqual(authPush.status, 200, 'Authenticated push to an existing room must succeed');
+    assert.strictEqual((await authPush.json()).agentCount, 3);
+
+    // Session listing must never leak a viewToken
+    const listRes = await fetch(`${baseUrl}/api/sessions`);
+    const listed = await listRes.json();
+    assert.ok(Array.isArray(listed.sessions) && listed.sessions.length > 0);
+    assert.ok(
+      listed.sessions.every(s => s.viewTokenHint === undefined && s.viewToken === undefined),
+      'Session summary must not expose viewToken'
+    );
+    console.log('  ✓ [4/6] Universal One-Call Webhook (/api/push) auth & token non-leakage passed');
 
     // 5. MCP Tools & Stateful Session Context
     assert.strictEqual(TOOLS.length, 6, 'MCP must expose 6 tools');
@@ -153,6 +198,7 @@ async function runTests() {
     console.log('\n🎉 ALL 6 E2E TEST SUITES PASSED SUCCESSFULLY!');
   } finally {
     server.close();
+    fs.rmSync(TMP_DATA_DIR, { recursive: true, force: true });
   }
 }
 

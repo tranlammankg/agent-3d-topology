@@ -3,7 +3,7 @@
 const express = require('express');
 const config = require('../config');
 const sessionManager = require('../sessionManager');
-const { extractToken, requireMasterKeyIfConfigured } = require('../auth');
+const { extractToken, requireMasterKeyIfConfigured, safeCompare } = require('../auth');
 
 const router = express.Router();
 
@@ -39,8 +39,8 @@ router.get('/health', (req, res) => {
   });
 });
 
-// 2. List Sessions Summary
-router.get('/sessions', (req, res) => {
+// 2. List Sessions Summary (gated by MASTER_API_KEY when configured)
+router.get('/sessions', requireMasterKeyIfConfigured, (req, res) => {
   const list = sessionManager.listSessionsSummary();
   res.json({ sessions: list });
 });
@@ -186,7 +186,7 @@ router.post('/push', (req, res) => {
     // Verify master key if configured
     if (config.masterApiKey) {
       const token = extractToken(req);
-      if (token !== config.masterApiKey) {
+      if (!safeCompare(token, config.masterApiKey)) {
         return res.status(401).json({ error: 'Unauthorized: MASTER_API_KEY required to create session.' });
       }
     }
@@ -198,10 +198,15 @@ router.post('/push', (req, res) => {
     });
     isCreated = true;
   } else {
+    // Writing to an existing room always requires its authToken (or MASTER_API_KEY).
+    // ALLOW_ANONYMOUS_PUSH=true restores the old token-less behaviour for trusted
+    // private networks only — it lets anyone who knows a sessionId overwrite the room.
     const token = extractToken(req);
-    const isQuickPushRoom = session.metadata && session.metadata.quickPush;
-    if (!isQuickPushRoom && !sessionManager.verifyWriteAccess(session, token)) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid authToken for existing session.' });
+    if (!config.allowAnonymousPush && !sessionManager.verifyWriteAccess(session, token)) {
+      return res.status(401).json({
+        error: 'Unauthorized: authToken is required to update an existing session. '
+          + 'Use the authToken returned when the session was created, or set ALLOW_ANONYMOUS_PUSH=true on a trusted private network.'
+      });
     }
     if (title) session.title = title;
   }

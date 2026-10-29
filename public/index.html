@@ -320,6 +320,10 @@ curl -X PATCH "${origin}/api/sessions/SES_ID/agents/worker_1" \\
         const listEl = document.getElementById('sessionsList');
         try {
           const res = await fetch('/api/sessions');
+          if (res.status === 401) {
+            listEl.innerHTML = `<div style="color:#94a3b8; font-size:12.5px; font-family:monospace; padding:12px;">🔒 Server này đã bật MASTER_API_KEY nên danh sách phiên không công khai. Hãy mở phòng bằng link <code>viewUrl</code> mà agent trả về.</div>`;
+            return;
+          }
           const data = await res.json();
           const sessions = data.sessions || [];
           if (sessions.length === 0) {
@@ -327,7 +331,8 @@ curl -X PATCH "${origin}/api/sessions/SES_ID/agents/worker_1" \\
             return;
           }
           listEl.innerHTML = sessions.map(s => {
-            const url = `/room/${encodeURIComponent(s.id)}${s.viewTokenHint ? '?token=' + encodeURIComponent(s.viewTokenHint) : ''}`;
+            // A publicView room needs no token; a private room prompts for one in the viewer.
+            const url = `/room/${encodeURIComponent(s.id)}`;
             return `
               <div class="session-item">
                 <div>

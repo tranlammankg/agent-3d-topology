@@ -25,6 +25,10 @@ const config = {
   publicBaseUrl: (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, ''),
   masterApiKey: (process.env.MASTER_API_KEY || '').trim(),
   requireViewToken: String(process.env.REQUIRE_VIEW_TOKEN || 'true').toLowerCase() !== 'false',
+  // When false (default), writing to an EXISTING session via /api/push requires its authToken.
+  // Set to "true" only on a trusted private network: it lets anyone who knows a sessionId
+  // overwrite that room's agents.
+  allowAnonymousPush: String(process.env.ALLOW_ANONYMOUS_PUSH || 'false').toLowerCase() === 'true',
   maxSessions: parseInt(process.env.MAX_SESSIONS || '200', 10),
   sessionTtlHours: parseFloat(process.env.SESSION_TTL_HOURS || '24'),
   maxEventsPerSession: parseInt(process.env.MAX_EVENTS_PER_SESSION || '60', 10),
