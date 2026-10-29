@@ -40,6 +40,9 @@ When updating agents in the 3D office, control their physical movement across th
 
 ## Workflow 1: Push Live to the 3D Topology Server (Recommended)
 
+> **Claude Code plugin:** when installed as a plugin, replace `~/.gemini/config/skills/agent-3d-topology` in every command below with `${CLAUDE_PLUGIN_ROOT}/skills/agent-3d-topology`.
+
+
 By default, the server runs on `http://localhost:3300` (or the URL in `$AGENT_3D_URL`).
 You can use the bundled `scripts/push_3d.js` helper (which automatically remembers `sessionId` and `authToken` in `~/.agent-3d-session.json`) OR call `/api/push` directly with `curl`.
 

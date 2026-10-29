@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "agent-3d-topology": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/src/mcp/index.js"],
+      "env": {
+        "AGENT_3D_URL": "${AGENT_3D_URL:-http://localhost:3300}"
+      }
+    }
+  }
+}

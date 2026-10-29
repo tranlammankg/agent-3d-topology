@@ -1,0 +1,10 @@
+{
+  "name": "agent-3d-topology",
+  "version": "4.0.0",
+  "description": "Visualize running multi-agent / subagent sessions as a live 3D isometric cyberpunk office (skill + MCP server for the Agent 3D Topology Hub).",
+  "author": { "name": "tranlammankg" },
+  "homepage": "https://github.com/tranlammankg/agent-3d-topology",
+  "repository": "https://github.com/tranlammankg/agent-3d-topology",
+  "license": "MIT",
+  "keywords": ["multi-agent", "visualization", "mcp", "3d", "topology"]
+}

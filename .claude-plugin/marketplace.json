@@ -1,0 +1,11 @@
+{
+  "name": "agent-3d-topology",
+  "owner": { "name": "tranlammankg" },
+  "plugins": [
+    {
+      "name": "agent-3d-topology",
+      "source": "./",
+      "description": "Live 3D visualization of multi-agent sessions (skill + MCP server)."
+    }
+  ]
+}
