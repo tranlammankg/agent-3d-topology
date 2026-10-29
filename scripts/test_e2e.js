@@ -182,6 +182,33 @@ async function runTests() {
     );
     console.log('  ✓ [4/6] Universal One-Call Webhook (/api/push) auth & token non-leakage passed');
 
+    // 4b. Agent data integrity: id resolution, field caps, color validation
+    const integrity = sessionManager.createSession({
+      title: 'Data Integrity Room',
+      agents: [{ id: 'agent_1', name: 'First' }]
+    });
+
+    // An agent with no id must NOT collide with the existing agent_1
+    sessionManager.upsertAgents(integrity.id, [{ name: 'No Id Given' }]);
+    const ids = integrity.agents.map(a => a.id);
+    assert.strictEqual(new Set(ids).size, ids.length, 'Agent ids must stay unique');
+    assert.strictEqual(integrity.agents.length, 2, 'An id-less agent must not overwrite agent_1');
+    assert.strictEqual(integrity.agents[0].name, 'First', 'agent_1 must be untouched');
+
+    // Oversized strings are clamped, not stored whole
+    sessionManager.updateAgent(integrity.id, 'big', {
+      name: 'N'.repeat(5000),
+      desc: 'D'.repeat(5000)
+    });
+    const bigAgent = integrity.agents.find(a => a.id === 'big');
+    assert.ok(bigAgent.name.length <= 120 && bigAgent.desc.length <= 500, 'Agent fields must be clamped');
+
+    // A non-hex color must be rejected in favour of the deterministic palette color
+    sessionManager.updateAgent(integrity.id, 'painter', { color: 'red; background:url(//evil)' });
+    const painter = integrity.agents.find(a => a.id === 'painter');
+    assert.ok(/^#[0-9a-fA-F]{3,8}$/.test(painter.color), `Color must be a hex literal, got ${painter.color}`);
+    console.log('  ✓ [4b] Agent id uniqueness, field clamping & color validation passed');
+
     // 5. MCP Tools & Stateful Session Context
     assert.strictEqual(TOOLS.length, 6, 'MCP must expose 6 tools');
     const mcpInit = await handleToolCall('init_3d_session', {

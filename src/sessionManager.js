@@ -11,6 +11,26 @@ const PALETTE = [
   '#84cc16', '#eab308', '#3b82f6', '#d946ef'
 ];
 
+// Agent-supplied strings end up in memory, on disk and in every viewer, so cap them.
+const FIELD_LIMITS = {
+  id: 64,
+  name: 120,
+  role: 80,
+  status: 80,
+  desc: 500,
+  message: 500
+};
+
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
+function clampString(value, maxLength) {
+  return String(value).slice(0, maxLength);
+}
+
+function sanitizeColor(value) {
+  return typeof value === 'string' && HEX_COLOR.test(value) ? value : null;
+}
+
 function hashColor(idStr) {
   const str = String(idStr || 'agent');
   let hash = 2166136261;
@@ -129,7 +149,7 @@ class SessionManager {
 
     const session = {
       id,
-      title: title || `Agent Swarm #${id.slice(-4)}`,
+      title: title ? clampString(title, 160) : `Agent Swarm #${id.slice(-4)}`,
       status: 'active',
       publicView: publicView !== undefined ? Boolean(publicView) : !config.requireViewToken,
       authToken: generateToken('sk'),
@@ -174,24 +194,56 @@ class SessionManager {
     return false;
   }
 
-  _normalizeAgent(raw, existing = null, index = 0) {
-    const id = String(raw.id || (existing && existing.id) || `agent_${index + 1}`);
+  /**
+   * Resolve the id an incoming agent payload should be stored under.
+   * Callers MUST use this and then hand the result to _normalizeAgent, so the id used
+   * to look up the existing agent is always the id the normalized agent ends up with.
+   */
+  _resolveAgentId(session, raw) {
+    const given = raw && raw.id !== undefined && raw.id !== null ? String(raw.id).trim() : '';
+    if (given) return clampString(given, FIELD_LIMITS.id);
+
+    // No id supplied: mint the first unused agent_N instead of guessing from an index,
+    // which could collide with an agent that already exists.
+    const taken = new Set((session ? session.agents : []).map(a => a.id));
+    let n = 1;
+    while (taken.has(`agent_${n}`)) n++;
+    return `agent_${n}`;
+  }
+
+  _normalizeAgent(raw, existing = null, id = null) {
+    const agentId = clampString(id || (existing && existing.id) || 'agent_1', FIELD_LIMITS.id);
     const now = Date.now();
+    const screens = parseInt(raw.screens !== undefined ? raw.screens : (existing && existing.screens), 10);
+
     return {
-      id,
-      name: raw.name !== undefined ? String(raw.name) : (existing ? existing.name : `Agent ${id}`),
-      role: raw.role !== undefined ? String(raw.role) : (existing ? existing.role : 'Worker Agent'),
-      status: raw.status !== undefined ? String(raw.status) : (existing ? existing.status : 'Active'),
-      progress: typeof raw.progress === 'number'
+      id: agentId,
+      name: raw.name !== undefined
+        ? clampString(raw.name, FIELD_LIMITS.name)
+        : (existing ? existing.name : `Agent ${agentId}`),
+      role: raw.role !== undefined
+        ? clampString(raw.role, FIELD_LIMITS.role)
+        : (existing ? existing.role : 'Worker Agent'),
+      status: raw.status !== undefined
+        ? clampString(raw.status, FIELD_LIMITS.status)
+        : (existing ? existing.status : 'Active'),
+      progress: Number.isFinite(raw.progress)
         ? Math.max(0, Math.min(100, Math.round(raw.progress)))
         : (existing ? existing.progress : 0),
-      desc: raw.desc !== undefined ? String(raw.desc) : (existing ? existing.desc : 'Executing assigned workflow tasks.'),
-      message: raw.message !== undefined ? String(raw.message) : (existing ? existing.message : 'Standing by at workstation.'),
-      color: raw.color || (existing && existing.color) || hashColor(id),
+      desc: raw.desc !== undefined
+        ? clampString(raw.desc, FIELD_LIMITS.desc)
+        : (existing ? existing.desc : 'Executing assigned workflow tasks.'),
+      message: raw.message !== undefined
+        ? clampString(raw.message, FIELD_LIMITS.message)
+        : (existing ? existing.message : 'Standing by at workstation.'),
+      // Colors are written into inline styles in the viewer: accept a hex literal only.
+      color: sanitizeColor(raw.color) || (existing && existing.color) || hashColor(agentId),
       isLeader: raw.isLeader !== undefined ? Boolean(raw.isLeader) : (existing ? existing.isLeader : false),
-      reportTo: raw.reportTo !== undefined ? raw.reportTo : (existing ? existing.reportTo : null),
+      reportTo: raw.reportTo !== undefined
+        ? (raw.reportTo ? clampString(raw.reportTo, FIELD_LIMITS.id) : null)
+        : (existing ? existing.reportTo : null),
       handover: Boolean(raw.handover),
-      screens: raw.screens || (existing && existing.screens) || 2,
+      screens: Number.isFinite(screens) ? Math.max(1, Math.min(3, screens)) : 2,
       joinedAt: existing ? existing.joinedAt : now,
       updatedAt: now
     };
@@ -221,19 +273,25 @@ class SessionManager {
     const existingMap = new Map(session.agents.map(a => [a.id, a]));
 
     if (replaceAll) {
-      session.agents = agentsList.map((raw, idx) => {
-        const id = String(raw.id || `agent_${idx + 1}`);
-        return this._normalizeAgent(raw, existingMap.get(id), idx);
+      const rebuilt = [];
+      const seen = new Set();
+      agentsList.forEach(raw => {
+        const id = this._resolveAgentId({ agents: rebuilt }, raw);
+        if (seen.has(id)) return; // a payload must not list the same agent twice
+        seen.add(id);
+        rebuilt.push(this._normalizeAgent(raw, existingMap.get(id), id));
       });
+      session.agents = rebuilt;
     } else {
-      agentsList.forEach((raw, idx) => {
-        const id = String(raw.id || `agent_${session.agents.length + idx + 1}`);
-        const prev = existingMap.get(id);
-        const normalized = this._normalizeAgent(raw, prev, idx);
+      agentsList.forEach(raw => {
+        const id = this._resolveAgentId(session, raw);
+        const posIdx = session.agents.findIndex(a => a.id === id);
+        const prev = posIdx === -1 ? null : session.agents[posIdx];
+        const normalized = this._normalizeAgent(raw, prev, id);
         if (prev) {
-          const posIdx = session.agents.findIndex(a => a.id === id);
           session.agents[posIdx] = normalized;
         } else {
+          if (session.agents.length >= config.maxAgentsPerSession) return;
           session.agents.push(normalized);
         }
       });
@@ -268,13 +326,14 @@ class SessionManager {
     const session = this.getSession(sessionId);
     if (!session) return null;
 
-    const id = String(agentId);
+    const id = this._resolveAgentId(session, { id: agentId });
     const idx = session.agents.findIndex(a => a.id === id);
     const isNew = idx === -1;
     const prev = isNew ? null : session.agents[idx];
-    const updated = this._normalizeAgent({ ...patch, id }, prev, session.agents.length);
+    const updated = this._normalizeAgent({ ...patch, id }, prev, id);
 
     if (isNew) {
+      if (session.agents.length >= config.maxAgentsPerSession) return null;
       session.agents.push(updated);
     } else {
       session.agents[idx] = updated;
@@ -345,12 +404,14 @@ class SessionManager {
     const session = this.getSession(sessionId);
     if (!session || !message) return null;
 
-    const id = String(agentId);
+    const id = this._resolveAgentId(session, { id: agentId });
+    const text = clampString(message, FIELD_LIMITS.message);
     let agent = session.agents.find(a => a.id === id);
     if (!agent) {
-      agent = this.updateAgent(sessionId, id, { name: id, message });
+      agent = this.updateAgent(sessionId, id, { name: id, message: text });
+      if (!agent) return null; // agent cap reached
     } else {
-      agent.message = String(message);
+      agent.message = text;
       agent.updatedAt = Date.now();
     }
 
@@ -363,7 +424,7 @@ class SessionManager {
       agentId: agent.id,
       agentName: agent.name,
       agentColor: agent.color,
-      message: String(message),
+      message: text,
       durationMs: duration,
       timestamp: now
     };
@@ -374,14 +435,14 @@ class SessionManager {
       agentId: agent.id,
       agentName: agent.name,
       agentColor: agent.color,
-      message: String(message)
+      message: text
     });
 
     this._broadcast(session.id, 'AGENT_SPEAK', {
       agentId: agent.id,
       agentName: agent.name,
       agentColor: agent.color,
-      message: String(message),
+      message: text,
       durationMs: duration,
       event: evt
     });

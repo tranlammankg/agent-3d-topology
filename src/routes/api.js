@@ -208,7 +208,7 @@ router.post('/push', (req, res) => {
           + 'Use the authToken returned when the session was created, or set ALLOW_ANONYMOUS_PUSH=true on a trusted private network.'
       });
     }
-    if (title) session.title = title;
+    if (title) session.title = String(title).slice(0, 160);
   }
 
   if (Array.isArray(agents)) {
