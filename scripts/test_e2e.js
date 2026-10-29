@@ -14,6 +14,7 @@ process.env.DATA_DIR = TMP_DATA_DIR;
 const WebSocket = require('ws');
 const { server } = require('../src/server');
 const { TOOLS, handleToolCall } = require('../src/mcp/index');
+const sessionManager = require('../src/sessionManager');
 
 async function runTests() {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -108,7 +109,23 @@ async function runTests() {
     assert.ok(receivedWsEvents.includes('AGENT_UPSERT'), 'WS must receive AGENT_UPSERT');
     assert.ok(receivedWsEvents.includes('AGENT_SPEAK'), 'WS must receive AGENT_SPEAK');
     assert.ok(receivedWsEvents.includes('AGENT_REMOVE'), 'WS must receive AGENT_REMOVE');
-    console.log('  ✓ [3/6] WebSocket Realtime Sync & Dynamic Agent Lifecycle (Spawn/Speak/Remove) passed');
+    // A WS connect to an unknown room must be refused, not silently create one
+    const sessionsBefore = sessionManager.sessions.size;
+    const ghostWs = new WebSocket(`ws://127.0.0.1:${port}/ws?sessionId=definitely-not-a-real-room`);
+    const ghostMsgs = [];
+    const ghostClose = await new Promise((resolve, reject) => {
+      ghostWs.on('message', raw => ghostMsgs.push(JSON.parse(raw.toString()).type));
+      ghostWs.on('close', code => resolve(code));
+      ghostWs.on('error', reject);
+    });
+    assert.strictEqual(ghostClose, 4004, 'Unknown room must close with 4004');
+    assert.ok(ghostMsgs.includes('SESSION_NOT_FOUND'), 'Client must be told the room does not exist');
+    assert.strictEqual(
+      sessionManager.sessions.size,
+      sessionsBefore,
+      'An unauthenticated WS connect must not create a session'
+    );
+    console.log('  ✓ [3/6] WebSocket Realtime Sync, Agent Lifecycle & no unauthenticated session minting passed');
 
     // 4. Universal One-Call Push API (/api/push)
     const pushRes = await fetch(`${baseUrl}/api/push`, {

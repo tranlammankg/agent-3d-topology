@@ -129,7 +129,18 @@ wss.on('connection', (ws, req) => {
 
   let session = sessionManager.getSession(sessionId);
   if (!session) {
-    // Auto-create a public session if someone visits a new custom room URL directly
+    if (!config.allowWsAutoCreate) {
+      // Creating a room from an unauthenticated WebSocket connect lets anyone mint
+      // sessions at will. With MAX_SESSIONS LRU eviction that is enough to flush every
+      // real room out of memory, so by default a viewer may only watch an existing room.
+      ws.send(JSON.stringify({
+        type: 'SESSION_NOT_FOUND',
+        error: 'No such 3D room. Ask an agent to create it first (POST /api/sessions or /api/push).'
+      }));
+      ws.close(4004, 'Session not found');
+      return;
+    }
+    // Opt-in: auto-create a public session when someone opens a new custom room URL.
     session = sessionManager.createSession({
       customId: sessionId || 'default',
       title: `3D Room #${sessionId || 'default'}`,

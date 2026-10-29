@@ -29,6 +29,10 @@ const config = {
   // Set to "true" only on a trusted private network: it lets anyone who knows a sessionId
   // overwrite that room's agents.
   allowAnonymousPush: String(process.env.ALLOW_ANONYMOUS_PUSH || 'false').toLowerCase() === 'true',
+  // When false (default), a WebSocket connect to an unknown sessionId is refused instead
+  // of silently creating a public room. Enabling this lets any unauthenticated client
+  // mint sessions and, via MAX_SESSIONS LRU eviction, flush out the real ones.
+  allowWsAutoCreate: String(process.env.ALLOW_WS_AUTOCREATE || 'false').toLowerCase() === 'true',
   maxSessions: parseInt(process.env.MAX_SESSIONS || '200', 10),
   sessionTtlHours: parseFloat(process.env.SESSION_TTL_HOURS || '24'),
   maxEventsPerSession: parseInt(process.env.MAX_EVENTS_PER_SESSION || '60', 10),
