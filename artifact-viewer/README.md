@@ -13,24 +13,24 @@ bash artifact-viewer/build.sh
 Publish `artifact-viewer/live.html` with the Artifact tool and these capabilities:
 
 ```json
-{"db": {"rules": [
-  {"path": "agents", "read": "view", "write": "admin"},
-  {"path": "meta",   "read": "view", "write": "admin"}
-]}}
+{"db": {"rules": [{"path": "sessions", "read": "view", "write": "admin"}]}}
 ```
 
 ## Data model
 
-| Collection / doc | Fields |
-| :--- | :--- |
-| `meta/session` | `title`, `sessionUrl` (a `https://claude.ai/...` link shown as "Phiên Claude ↗"), `updatedAt` |
-| `agents/<id>` | `name`, `role`, `progress` (0-100), `status`, `isLeader`, `reportTo`, `handover`, `message`, `speak`, `speakAt`, `updatedAt` |
+Every Claude session has its own room, so parallel sessions never overwrite each other.
 
+| Path | Fields |
+| :--- | :--- |
+| `sessions/<SID>` | `title`, `sessionUrl` (`https://claude.ai/...`, shown as "Mở phiên Claude ↗"), `status` (`active`/`done`), `updatedAt` |
+| `sessions/<SID>/agents/<id>` | `name`, `role`, `progress` (0-100), `status`, `isLeader`, `reportTo`, `handover`, `message`, `speak`, `speakAt`, `updatedAt` |
+
+The page lists sessions newest first in the "Phiên" picker; `#s-<SID>` in the URL opens one directly.
 `progress: 0` sends an agent to the sofa, `1..99` to its desk, `100` + `handover: true` walks a data cube to `reportTo`.
 A speech bubble shows when `speakAt` changes while the page is open.
 
 ## Limits
 
-- One board per Artifact: two sessions writing at once overwrite each other's rows.
+- Finished sessions stay listed until deleted.
 - Updates appear only when Claude writes a row; it is not wired to process events.
 - See `skills/agent-3d-live/SKILL.md` for the procedure Claude follows.

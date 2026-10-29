@@ -1,17 +1,35 @@
-<div class="bar"><h1 id="title">Agent Topology Live</h1>
- <div class="meta"><span><i class="dot" id="dot"></i><span id="state">đang kết nối…</span></span><span id="count">0 agent</span><span id="upd"></span><a class="back" id="back" hidden target="_blank" rel="noopener">Phiên Claude ↗</a></div></div>
-<div id="viewport"><div id="hint">Chưa có agent nào. Claude sẽ ghi trạng thái agent vào bảng <code>agents</code> và phòng 3D sẽ tự cập nhật.</div></div>
+<div class="bar">
+ <div class="pick"><label for="sess">Phiên</label><select id="sess"><option value="">đang tải…</option></select></div>
+ <div class="meta"><span><i class="dot" id="dot"></i><span id="state">đang kết nối…</span></span><span id="count">0 agent</span><span id="upd"></span><a class="back" id="back" hidden target="_blank" rel="noopener">Mở phiên Claude ↗</a></div></div>
+<div id="viewport"><div id="hint">Chưa có phiên nào. Khi một phiên Claude dùng skill agent-3d-live, phiên đó sẽ hiện trong ô "Phiên" và các agent của nó xuất hiện ở đây.</div></div>
 <script>
+// Data: sessions/<sid> {title, sessionUrl, status, updatedAt}; sessions/<sid>/agents/<id> {name, role, progress, ...}
 const office = new AgentOffice3D('#viewport', {title:'Agent 3D Topology', autoRotate:true});
 const $ = id => document.getElementById(id);
-const lastMsg = new Map();
+const IDLE_MS = 2 * 60 * 60 * 1000;
+let db = null, sessions = [], current = null, unsubAgents = null, lastMsg = new Map();
+const hashKey = sid => 's-' + sid.replace(/[^A-Za-z0-9-]/g, '-');
 function setState(live, text){ $('dot').className = 'dot' + (live?' live':''); $('state').textContent = text; }
-function render(rows){
-  const agents = rows.map(r => ({id:r.id, name:r.name, role:r.role, progress:r.progress, status:r.status,
-    isLeader:!!r.isLeader, reportTo:r.reportTo, handover:!!r.handover, message:r.message, desc:r.desc}));
-  office.setAgents(agents);
-  $('count').textContent = agents.length + ' agent';
-  $('hint').classList.toggle('show', agents.length === 0);
+function label(s){
+  const quiet = s.status === 'done' ? ' · đã xong' : (Date.now() - (s.updatedAt||0) > IDLE_MS ? ' · im lặng' : '');
+  return (s.title || s.id) + quiet;
+}
+function renderPicker(){
+  const sel = $('sess'); sel.textContent = '';
+  if (!sessions.length) { const o = document.createElement('option'); o.value=''; o.textContent='chưa có phiên'; sel.append(o); return; }
+  sessions.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = label(s); sel.append(o); });
+  sel.value = current || '';
+}
+function renderMeta(){
+  const s = sessions.find(x => x.id === current);
+  const ok = s && typeof s.sessionUrl === 'string' && s.sessionUrl.startsWith('https://claude.ai/');
+  $('back').hidden = !ok; if (ok) $('back').href = s.sessionUrl;
+}
+function renderAgents(rows){
+  office.setAgents(rows.map(r => ({id:r.id, name:r.name, role:r.role, progress:r.progress, status:r.status,
+    isLeader:!!r.isLeader, reportTo:r.reportTo, handover:!!r.handover, message:r.message, desc:r.desc})));
+  $('count').textContent = rows.length + ' agent';
+  $('hint').classList.toggle('show', rows.length === 0 && !sessions.length);
   let newest = 0;
   rows.forEach(r => {
     newest = Math.max(newest, r.updatedAt || 0);
@@ -20,17 +38,31 @@ function render(rows){
       lastMsg.set(r.id, r.speakAt);
     }
   });
-  if (newest) $('upd').textContent = 'cập nhật ' + new Date(newest).toLocaleTimeString();
+  $('upd').textContent = newest ? 'cập nhật ' + new Date(newest).toLocaleTimeString() : '';
 }
+function select(sid){
+  if (sid === current) return;
+  current = sid; lastMsg = new Map();
+  if (unsubAgents) { unsubAgents(); unsubAgents = null; }
+  renderPicker(); renderMeta(); renderAgents([]);
+  if (!sid) return;
+  if (location.hash.slice(1) !== hashKey(sid)) history.replaceState(null, '', '#' + hashKey(sid));
+  unsubAgents = db.collection('sessions/' + sid + '/agents').onSnapshot(
+    snap => { setState(true, 'trực tiếp'); renderAgents(snap.docs.map(d => Object.assign({id:d.id}, d.data()))); },
+    () => setState(false, 'mất kết nối'));
+}
+function fromHash(){ const k = location.hash.slice(1); const s = sessions.find(x => hashKey(x.id) === k); return s && s.id; }
+$('sess').addEventListener('change', e => select(e.target.value));
+addEventListener('hashchange', () => { const sid = fromHash(); if (sid) select(sid); });
 (async () => {
-  let db = null;
   try { db = await claude.use('db'); } catch (e) {}
   if (!db) { setState(false, 'không có kết nối dữ liệu'); $('hint').classList.add('show'); return; }
-  db.doc('meta/session').onSnapshot(s => { const d = s.exists && s.data(); if (!d) return; if (d.title) $('title').textContent = d.title;
-    if (typeof d.sessionUrl === 'string' && d.sessionUrl.startsWith('https://claude.ai/')) { $('back').href = d.sessionUrl; $('back').hidden = false; } else $('back').hidden = true; });
-  db.collection('agents').onSnapshot(snap => {
+  db.collection('sessions').onSnapshot(snap => {
     setState(true, 'trực tiếp');
-    render(snap.docs.map(d => Object.assign({id:d.id}, d.data())));
+    sessions = snap.docs.map(d => Object.assign({id:d.id}, d.data())).sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0));
+    const keep = sessions.some(s => s.id === current) ? current : (fromHash() || (sessions[0] && sessions[0].id) || null);
+    if (keep !== current) select(keep); else { renderPicker(); renderMeta(); }
+    if (!sessions.length) { renderAgents([]); }
   }, () => setState(false, 'mất kết nối'));
 })();
 </script>

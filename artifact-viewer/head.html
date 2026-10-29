@@ -14,6 +14,10 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--display);ov
 .back{color:var(--accent);text-decoration:none}.back:hover,.back:focus-visible{text-decoration:underline}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-right:6px}
 .dot.live{background:var(--ok)}
+.pick{display:flex;align-items:center;gap:8px;min-width:0}
+.pick label{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.pick select{font:inherit;font-size:13px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:4px 8px;max-width:min(60vw,320px)}
+.pick select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 #viewport{flex:1;min-height:0;position:relative}
 #hint{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted);font-size:14px;pointer-events:none}
 #hint.show{display:flex}
