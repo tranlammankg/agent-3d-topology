@@ -193,7 +193,44 @@ async function runTests() {
     });
     const rpcData = await rpcRes.json();
     assert.strictEqual(rpcData.result.tools.length, 6);
-    console.log('  ✓ [6/6] Streamable HTTP MCP Endpoint (/mcp) passed');
+
+    // Two independent HTTP MCP clients must NOT share session state.
+    async function mcpInitialize() {
+      const r = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
+      });
+      const mcpSessionId = r.headers.get('mcp-session-id');
+      assert.ok(mcpSessionId, 'initialize must return an Mcp-Session-Id header');
+      return mcpSessionId;
+    }
+    async function mcpCall(mcpSessionId, toolName, toolArgs) {
+      const r = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Mcp-Session-Id': mcpSessionId },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 2, method: 'tools/call',
+          params: { name: toolName, arguments: toolArgs }
+        })
+      });
+      const body = await r.json();
+      assert.ok(!body.result.isError, `MCP tool ${toolName} failed: ${JSON.stringify(body.result)}`);
+      return JSON.parse(body.result.content[0].text);
+    }
+
+    const clientA = await mcpInitialize();
+    const clientB = await mcpInitialize();
+    assert.notStrictEqual(clientA, clientB, 'Each initialize must mint a distinct Mcp-Session-Id');
+
+    const roomA = await mcpCall(clientA, 'init_3d_session', { title: 'Client A Room' });
+    const roomB = await mcpCall(clientB, 'init_3d_session', { title: 'Client B Room' });
+    assert.notStrictEqual(roomA.sessionId, roomB.sessionId);
+
+    // A stateful call from client B must land in B's room, not A's.
+    const bUpdate = await mcpCall(clientB, 'update_agent_status', { agentId: 'b_worker', name: 'B Worker' });
+    assert.strictEqual(bUpdate.sessionId, roomB.sessionId, 'Client B state must not leak into client A room');
+    console.log('  ✓ [6/6] Streamable HTTP MCP Endpoint (/mcp) + per-client session isolation passed');
 
     console.log('\n🎉 ALL 6 E2E TEST SUITES PASSED SUCCESSFULLY!');
   } finally {
