@@ -2,9 +2,19 @@
 'use strict';
 
 const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+// Isolate the suite from the real ./data directory BEFORE src/config.js is loaded,
+// so runs are hermetic and repeatable instead of inheriting the previous run's sessions.
+const TMP_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent3d-test-'));
+process.env.DATA_DIR = TMP_DATA_DIR;
+
 const WebSocket = require('ws');
 const { server } = require('../src/server');
 const { TOOLS, handleToolCall } = require('../src/mcp/index');
+const sessionManager = require('../src/sessionManager');
 
 async function runTests() {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -99,7 +109,23 @@ async function runTests() {
     assert.ok(receivedWsEvents.includes('AGENT_UPSERT'), 'WS must receive AGENT_UPSERT');
     assert.ok(receivedWsEvents.includes('AGENT_SPEAK'), 'WS must receive AGENT_SPEAK');
     assert.ok(receivedWsEvents.includes('AGENT_REMOVE'), 'WS must receive AGENT_REMOVE');
-    console.log('  ✓ [3/6] WebSocket Realtime Sync & Dynamic Agent Lifecycle (Spawn/Speak/Remove) passed');
+    // A WS connect to an unknown room must be refused, not silently create one
+    const sessionsBefore = sessionManager.sessions.size;
+    const ghostWs = new WebSocket(`ws://127.0.0.1:${port}/ws?sessionId=definitely-not-a-real-room`);
+    const ghostMsgs = [];
+    const ghostClose = await new Promise((resolve, reject) => {
+      ghostWs.on('message', raw => ghostMsgs.push(JSON.parse(raw.toString()).type));
+      ghostWs.on('close', code => resolve(code));
+      ghostWs.on('error', reject);
+    });
+    assert.strictEqual(ghostClose, 4004, 'Unknown room must close with 4004');
+    assert.ok(ghostMsgs.includes('SESSION_NOT_FOUND'), 'Client must be told the room does not exist');
+    assert.strictEqual(
+      sessionManager.sessions.size,
+      sessionsBefore,
+      'An unauthenticated WS connect must not create a session'
+    );
+    console.log('  ✓ [3/6] WebSocket Realtime Sync, Agent Lifecycle & no unauthenticated session minting passed');
 
     // 4. Universal One-Call Push API (/api/push)
     const pushRes = await fetch(`${baseUrl}/api/push`, {
@@ -118,7 +144,70 @@ async function runTests() {
     assert.ok(pushRes.status === 200 || pushRes.status === 201);
     const pushed = await pushRes.json();
     assert.strictEqual(pushed.agentCount, 2);
-    console.log('  ✓ [4/6] Universal One-Call Webhook (/api/push) passed');
+    assert.ok(pushed.authToken, 'Creating a room via /api/push must return its authToken');
+
+    // Updating an EXISTING room without its authToken must be rejected (401)
+    const anonPush = await fetch(`${baseUrl}/api/push`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'quick-push-room',
+        agent: { id: 'a1', name: 'Hijacked' }
+      })
+    });
+    assert.strictEqual(anonPush.status, 401, 'Anonymous write to an existing push room must be 401');
+
+    // The same update WITH the authToken must succeed
+    const authPush = await fetch(`${baseUrl}/api/push`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${pushed.authToken}`
+      },
+      body: JSON.stringify({
+        sessionId: 'quick-push-room',
+        agent: { id: 'a3', name: 'Authorized Worker', progress: 10 }
+      })
+    });
+    assert.strictEqual(authPush.status, 200, 'Authenticated push to an existing room must succeed');
+    assert.strictEqual((await authPush.json()).agentCount, 3);
+
+    // Session listing must never leak a viewToken
+    const listRes = await fetch(`${baseUrl}/api/sessions`);
+    const listed = await listRes.json();
+    assert.ok(Array.isArray(listed.sessions) && listed.sessions.length > 0);
+    assert.ok(
+      listed.sessions.every(s => s.viewTokenHint === undefined && s.viewToken === undefined),
+      'Session summary must not expose viewToken'
+    );
+    console.log('  ✓ [4/6] Universal One-Call Webhook (/api/push) auth & token non-leakage passed');
+
+    // 4b. Agent data integrity: id resolution, field caps, color validation
+    const integrity = sessionManager.createSession({
+      title: 'Data Integrity Room',
+      agents: [{ id: 'agent_1', name: 'First' }]
+    });
+
+    // An agent with no id must NOT collide with the existing agent_1
+    sessionManager.upsertAgents(integrity.id, [{ name: 'No Id Given' }]);
+    const ids = integrity.agents.map(a => a.id);
+    assert.strictEqual(new Set(ids).size, ids.length, 'Agent ids must stay unique');
+    assert.strictEqual(integrity.agents.length, 2, 'An id-less agent must not overwrite agent_1');
+    assert.strictEqual(integrity.agents[0].name, 'First', 'agent_1 must be untouched');
+
+    // Oversized strings are clamped, not stored whole
+    sessionManager.updateAgent(integrity.id, 'big', {
+      name: 'N'.repeat(5000),
+      desc: 'D'.repeat(5000)
+    });
+    const bigAgent = integrity.agents.find(a => a.id === 'big');
+    assert.ok(bigAgent.name.length <= 120 && bigAgent.desc.length <= 500, 'Agent fields must be clamped');
+
+    // A non-hex color must be rejected in favour of the deterministic palette color
+    sessionManager.updateAgent(integrity.id, 'painter', { color: 'red; background:url(//evil)' });
+    const painter = integrity.agents.find(a => a.id === 'painter');
+    assert.ok(/^#[0-9a-fA-F]{3,8}$/.test(painter.color), `Color must be a hex literal, got ${painter.color}`);
+    console.log('  ✓ [4b] Agent id uniqueness, field clamping & color validation passed');
 
     // 5. MCP Tools & Stateful Session Context
     assert.strictEqual(TOOLS.length, 6, 'MCP must expose 6 tools');
@@ -148,11 +237,49 @@ async function runTests() {
     });
     const rpcData = await rpcRes.json();
     assert.strictEqual(rpcData.result.tools.length, 6);
-    console.log('  ✓ [6/6] Streamable HTTP MCP Endpoint (/mcp) passed');
+
+    // Two independent HTTP MCP clients must NOT share session state.
+    async function mcpInitialize() {
+      const r = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
+      });
+      const mcpSessionId = r.headers.get('mcp-session-id');
+      assert.ok(mcpSessionId, 'initialize must return an Mcp-Session-Id header');
+      return mcpSessionId;
+    }
+    async function mcpCall(mcpSessionId, toolName, toolArgs) {
+      const r = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Mcp-Session-Id': mcpSessionId },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 2, method: 'tools/call',
+          params: { name: toolName, arguments: toolArgs }
+        })
+      });
+      const body = await r.json();
+      assert.ok(!body.result.isError, `MCP tool ${toolName} failed: ${JSON.stringify(body.result)}`);
+      return JSON.parse(body.result.content[0].text);
+    }
+
+    const clientA = await mcpInitialize();
+    const clientB = await mcpInitialize();
+    assert.notStrictEqual(clientA, clientB, 'Each initialize must mint a distinct Mcp-Session-Id');
+
+    const roomA = await mcpCall(clientA, 'init_3d_session', { title: 'Client A Room' });
+    const roomB = await mcpCall(clientB, 'init_3d_session', { title: 'Client B Room' });
+    assert.notStrictEqual(roomA.sessionId, roomB.sessionId);
+
+    // A stateful call from client B must land in B's room, not A's.
+    const bUpdate = await mcpCall(clientB, 'update_agent_status', { agentId: 'b_worker', name: 'B Worker' });
+    assert.strictEqual(bUpdate.sessionId, roomB.sessionId, 'Client B state must not leak into client A room');
+    console.log('  ✓ [6/6] Streamable HTTP MCP Endpoint (/mcp) + per-client session isolation passed');
 
     console.log('\n🎉 ALL 6 E2E TEST SUITES PASSED SUCCESSFULLY!');
   } finally {
     server.close();
+    fs.rmSync(TMP_DATA_DIR, { recursive: true, force: true });
   }
 }
 

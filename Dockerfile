@@ -3,9 +3,11 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy package manifests and install production dependencies
-COPY package.json ./
-RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
+# Copy package manifests and install production dependencies.
+# package-lock.json is copied too so `npm ci` can give a reproducible build;
+# `npm install` ignored the lockfile that is already committed to this repo.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 
 # Copy application source and 3D Canvas engine
 COPY src ./src

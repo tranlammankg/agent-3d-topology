@@ -25,11 +25,28 @@ const config = {
   publicBaseUrl: (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, ''),
   masterApiKey: (process.env.MASTER_API_KEY || '').trim(),
   requireViewToken: String(process.env.REQUIRE_VIEW_TOKEN || 'true').toLowerCase() !== 'false',
+  // When false (default), writing to an EXISTING session via /api/push requires its authToken.
+  // Set to "true" only on a trusted private network: it lets anyone who knows a sessionId
+  // overwrite that room's agents.
+  allowAnonymousPush: String(process.env.ALLOW_ANONYMOUS_PUSH || 'false').toLowerCase() === 'true',
+  // When false (default), a WebSocket connect to an unknown sessionId is refused instead
+  // of silently creating a public room. Enabling this lets any unauthenticated client
+  // mint sessions and, via MAX_SESSIONS LRU eviction, flush out the real ones.
+  allowWsAutoCreate: String(process.env.ALLOW_WS_AUTOCREATE || 'false').toLowerCase() === 'true',
   maxSessions: parseInt(process.env.MAX_SESSIONS || '200', 10),
   sessionTtlHours: parseFloat(process.env.SESSION_TTL_HOURS || '24'),
   maxEventsPerSession: parseInt(process.env.MAX_EVENTS_PER_SESSION || '60', 10),
+  // Hard ceiling on desks per room. The 3D engine morphs up to ~50 agents; this guards
+  // against an unbounded roster growing memory and the on-disk session store.
+  maxAgentsPerSession: parseInt(process.env.MAX_AGENTS_PER_SESSION || '100', 10),
   dataDir: path.resolve(__dirname, '..', process.env.DATA_DIR || './data'),
   defaultLang: (process.env.DEFAULT_LANG || 'vi').toLowerCase(),
+  // "*" (default), "none", or a comma-separated list of allowed origins.
+  corsAllowedOrigins: (() => {
+    const raw = (process.env.CORS_ALLOWED_ORIGINS || '*').trim();
+    if (raw === '*' || raw.toLowerCase() === 'none') return raw.toLowerCase() === 'none' ? 'none' : '*';
+    return raw.split(',').map(o => o.trim().replace(/\/+$/, '')).filter(Boolean);
+  })(),
 
   /**
    * Automatically resolves the public base URL from config or incoming HTTP headers

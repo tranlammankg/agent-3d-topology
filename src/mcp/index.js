@@ -14,14 +14,29 @@ function getBaseUrl() {
 }
 const MASTER_KEY = process.env.MASTER_API_KEY || '';
 
-// Stateful session memory per MCP process
-const state = {
-  sessionId: process.env.AGENT_3D_SESSION_ID || null,
-  authToken: process.env.AGENT_3D_AUTH_TOKEN || null,
-  viewUrl: null
-};
+/**
+ * Stateful session memory for ONE MCP client.
+ *
+ * The STDIO transport is one process per client, so a single shared state is correct
+ * there. The HTTP transport is NOT: a single module-level state would be shared by
+ * every caller of POST /mcp, letting one client's sessionId and authToken leak into
+ * another client's tool calls. Callers therefore pass their own state object.
+ */
+function createState(initial = {}) {
+  return {
+    sessionId: initial.sessionId || null,
+    authToken: initial.authToken || null,
+    viewUrl: initial.viewUrl || null
+  };
+}
 
-async function apiRequest(path, method = 'GET', body = null, token = null) {
+// Default state used by the STDIO transport and by direct in-process module calls.
+const defaultState = createState({
+  sessionId: process.env.AGENT_3D_SESSION_ID,
+  authToken: process.env.AGENT_3D_AUTH_TOKEN
+});
+
+async function apiRequest(path, method = 'GET', body = null, token = null, state = defaultState) {
   const baseUrl = getBaseUrl();
   const headers = { 'Content-Type': 'application/json' };
   const auth = token || state.authToken || MASTER_KEY;
@@ -38,14 +53,14 @@ async function apiRequest(path, method = 'GET', body = null, token = null) {
   return data;
 }
 
-async function ensureSession(title = 'AI Multi-Agent Session', initialAgents = []) {
+async function ensureSession(title = 'AI Multi-Agent Session', initialAgents = [], state = defaultState) {
   if (state.sessionId && state.authToken) {
     return { sessionId: state.sessionId, authToken: state.authToken, viewUrl: state.viewUrl };
   }
   const created = await apiRequest('/api/sessions', 'POST', {
     title,
     agents: initialAgents
-  }, MASTER_KEY);
+  }, MASTER_KEY, state);
 
   state.sessionId = created.sessionId;
   state.authToken = created.authToken;
@@ -173,14 +188,14 @@ const TOOLS = [
   }
 ];
 
-async function handleToolCall(name, args = {}) {
+async function handleToolCall(name, args = {}, state = defaultState) {
   if (name === 'init_3d_session') {
     const res = await apiRequest('/api/sessions', 'POST', {
       sessionId: args.sessionId,
       title: args.title || 'Multi-Agent 3D Session',
       publicView: args.publicView,
       agents: args.agents
-    }, MASTER_KEY);
+    }, MASTER_KEY, state);
 
     state.sessionId = res.sessionId;
     state.authToken = res.authToken;
@@ -194,14 +209,14 @@ async function handleToolCall(name, args = {}) {
     };
   }
 
-  await ensureSession();
+  await ensureSession('AI Multi-Agent Session', [], state);
   const targetSessionId = args.sessionId || state.sessionId;
 
   if (name === 'upsert_agents') {
     const res = await apiRequest(`/api/sessions/${encodeURIComponent(targetSessionId)}/agents`, 'POST', {
       agents: args.agents || [],
       replaceAll: Boolean(args.replaceAll)
-    });
+    }, null, state);
     return {
       ok: true,
       sessionId: targetSessionId,
@@ -214,7 +229,9 @@ async function handleToolCall(name, args = {}) {
     const res = await apiRequest(
       `/api/sessions/${encodeURIComponent(targetSessionId)}/agents/${encodeURIComponent(args.agentId)}`,
       'PATCH',
-      args
+      args,
+      null,
+      state
     );
     return {
       ok: true,
@@ -230,7 +247,7 @@ async function handleToolCall(name, args = {}) {
       agentId: args.agentId,
       message: args.message,
       durationMs: args.durationMs || 5000
-    });
+    }, null, state);
     return {
       ok: true,
       sessionId: targetSessionId,
@@ -242,7 +259,10 @@ async function handleToolCall(name, args = {}) {
   if (name === 'remove_agent') {
     const res = await apiRequest(
       `/api/sessions/${encodeURIComponent(targetSessionId)}/agents/${encodeURIComponent(args.agentId)}`,
-      'DELETE'
+      'DELETE',
+      null,
+      null,
+      state
     );
     return {
       ok: res.ok,
@@ -255,7 +275,7 @@ async function handleToolCall(name, args = {}) {
   if (name === 'close_session') {
     const res = await apiRequest(`/api/sessions/${encodeURIComponent(targetSessionId)}/close`, 'POST', {
       summary: args.summary || 'All agent tasks completed.'
-    });
+    }, null, state);
     return {
       ok: true,
       sessionId: targetSessionId,
@@ -353,4 +373,4 @@ if (require.main === module) {
   startStdioServer();
 }
 
-module.exports = { TOOLS, handleToolCall };
+module.exports = { TOOLS, handleToolCall, createState };

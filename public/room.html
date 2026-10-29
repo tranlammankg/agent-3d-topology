@@ -321,6 +321,21 @@
         sessionStorage.setItem(`ao3d_token_${sessionId}`, token);
       }
 
+      // Agent colors come from the API and land in inline styles, so only accept a hex literal.
+      const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+      function safeColor(value, fallback = '#38bdf8') {
+        return typeof value === 'string' && HEX_COLOR.test(value) ? value : fallback;
+      }
+
+      let sessionNotFound = false;
+
+      function showToast(message, durationMs = 2800) {
+        const toast = document.getElementById('toastBox');
+        toast.textContent = message;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, durationMs);
+      }
+
       let currentLang = localStorage.getItem('ao3d_lang') || 'vi';
       const isMobile = window.innerWidth < 768;
       const activityDrawer = document.getElementById('activityDrawer');
@@ -387,11 +402,25 @@
         const listEl = document.getElementById('activityList');
         const item = document.createElement('div');
         item.className = 'activity-item';
-        item.style.borderLeftColor = evt.agentColor || '#38bdf8';
+        item.style.borderLeftColor = safeColor(evt.agentColor);
 
-        const timeStr = new Date(evt.timestamp || Date.now()).toLocaleTimeString();
-        const prefix = evt.agentName ? `<strong style="color:${evt.agentColor || '#38bdf8'}">[${evt.agentName}]</strong> ` : '';
-        item.innerHTML = `<span class="activity-time">${timeStr}</span>${prefix}${evt.message || evt.type}`;
+        // Build with DOM nodes, not innerHTML: agentName and message are attacker-controlled
+        // (anything that can push to the API decides them), so string interpolation here
+        // would be a stored XSS in every viewer that opens the room.
+        const timeEl = document.createElement('span');
+        timeEl.className = 'activity-time';
+        timeEl.textContent = new Date(evt.timestamp || Date.now()).toLocaleTimeString();
+        item.appendChild(timeEl);
+
+        if (evt.agentName) {
+          const nameEl = document.createElement('strong');
+          nameEl.style.color = safeColor(evt.agentColor);
+          nameEl.textContent = `[${evt.agentName}]`;
+          item.appendChild(nameEl);
+          item.appendChild(document.createTextNode(' '));
+        }
+
+        item.appendChild(document.createTextNode(evt.message || evt.type || ''));
 
         if (evt.agentId) {
           item.addEventListener('click', () => office.focusAgent(evt.agentId));
@@ -417,10 +446,7 @@
         const shareUrl = new URL(window.location.href);
         if (token) shareUrl.searchParams.set('token', token);
         navigator.clipboard.writeText(shareUrl.toString()).then(() => {
-          const toast = document.getElementById('toastBox');
-          toast.textContent = UI_TEXT[currentLang].copied;
-          toast.style.display = 'block';
-          setTimeout(() => { toast.style.display = 'none'; }, 2800);
+          showToast(UI_TEXT[currentLang].copied);
         });
       });
 
@@ -485,6 +511,12 @@
               document.getElementById('authOverlay').style.display = 'flex';
               return;
             }
+            if (msg.type === 'SESSION_NOT_FOUND') {
+              sessionNotFound = true;
+              office.setTitle('⚠️ Phòng 3D không tồn tại');
+              showToast('Phòng này chưa được tạo. Hãy để agent khởi tạo trước (POST /api/sessions hoặc /api/push).', 7000);
+              return;
+            }
             if (msg.type === 'SNAPSHOT') {
               applySnapshot(msg.snapshot);
             } else if (msg.type === 'AGENTS_SYNC') {
@@ -513,6 +545,11 @@
         ws.onclose = (ev) => {
           if (ev.code === 4003) {
             document.getElementById('authOverlay').style.display = 'flex';
+            return;
+          }
+          if (ev.code === 4004 || sessionNotFound) {
+            // The room does not exist; retrying forever would just spin.
+            setConnState(false);
             return;
           }
           setConnState(false);

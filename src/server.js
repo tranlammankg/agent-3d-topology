@@ -1,23 +1,49 @@
 'use strict';
 
+const crypto = require('crypto');
 const http = require('http');
 const path = require('path');
 const express = require('express');
 const { WebSocketServer } = require('ws');
 const config = require('./config');
 const sessionManager = require('./sessionManager');
-const { createRateLimiter } = require('./auth');
+const { createRateLimiter, requireMasterKeyIfConfigured } = require('./auth');
 const apiRouter = require('./routes/api');
-const { TOOLS, handleToolCall } = require('./mcp/index');
+const { TOOLS, handleToolCall, createState } = require('./mcp/index');
 
 const app = express();
 
 // Trust reverse proxies (Cloudflare Tunnel, Nginx, Caddy, Traefik)
 app.set('trust proxy', true);
 
-// Universal CORS support for cross-origin agents & dashboards
+// CORS for cross-origin agents & dashboards.
+//
+// The default is still "*" so server-to-server agents keep working out of the box, but
+// note what that means for a server on localhost: any web page the user visits can POST
+// to http://localhost:3300 AND read the response, which is enough to enumerate and drive
+// rooms from a drive-by page. Set CORS_ALLOWED_ORIGINS to a comma-separated allowlist
+// (or "none" to send no CORS headers at all) when the server is reachable from a browser
+// that also browses the open web.
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const allowed = config.corsAllowedOrigins;
+
+  if (allowed === 'none') {
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    return next();
+  }
+
+  if (allowed === '*') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else {
+    const origin = req.headers.origin;
+    if (origin && allowed.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    } else if (req.method === 'OPTIONS') {
+      return res.sendStatus(403);
+    }
+  }
+
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Auth-Token, X-Api-Key');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -27,41 +53,83 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '2mb' }));
 app.use('/api', createRateLimiter({ windowMs: 60000, maxRequests: 300 }), apiRouter);
 
-// Built-in Streamable HTTP / JSON-RPC 2.0 MCP Endpoint (/mcp)
-app.post('/mcp', async (req, res) => {
-  const { id, method, params } = req.body || {};
-  try {
-    if (method === 'initialize') {
-      return res.json({
-        jsonrpc: '2.0',
-        id,
-        result: {
-          protocolVersion: (params && params.protocolVersion) || '2024-11-05',
-          capabilities: { tools: {} },
-          serverInfo: { name: 'agent-3d-topology-mcp-http', version: '4.0.0' }
-        }
-      });
-    }
-    if (method === 'tools/list') {
-      return res.json({ jsonrpc: '2.0', id, result: { tools: TOOLS } });
-    }
-    if (method === 'tools/call') {
-      const output = await handleToolCall(params.name, params.arguments || {});
-      return res.json({
-        jsonrpc: '2.0',
-        id,
-        result: { content: [{ type: 'text', text: JSON.stringify(output, null, 2) }] }
-      });
-    }
-    return res.json({ jsonrpc: '2.0', id, result: {} });
-  } catch (err) {
-    return res.json({
-      jsonrpc: '2.0',
-      id,
-      result: { isError: true, content: [{ type: 'text', text: `Error: ${err.message}` }] }
-    });
+/**
+ * Per-client MCP state for the HTTP transport.
+ *
+ * `initialize` mints an Mcp-Session-Id and returns it in the response header; the
+ * client echoes it on later calls. Without this, every HTTP caller would share one
+ * module-level state object and one client's sessionId/authToken would leak into
+ * another client's tool calls.
+ */
+const mcpHttpSessions = new Map();
+const MCP_HTTP_SESSION_TTL_MS = 60 * 60 * 1000;
+
+function sweepMcpHttpSessions() {
+  const now = Date.now();
+  for (const [id, entry] of mcpHttpSessions.entries()) {
+    if (now - entry.lastSeen > MCP_HTTP_SESSION_TTL_MS) mcpHttpSessions.delete(id);
   }
-});
+}
+setInterval(sweepMcpHttpSessions, 10 * 60 * 1000).unref();
+
+function getMcpHttpState(req) {
+  const id = req.headers['mcp-session-id'];
+  if (id && mcpHttpSessions.has(id)) {
+    const entry = mcpHttpSessions.get(id);
+    entry.lastSeen = Date.now();
+    return entry.state;
+  }
+  // Unknown or missing session id: give this request its own throwaway state rather
+  // than falling back to a shared one.
+  return createState();
+}
+
+// Built-in Streamable HTTP / JSON-RPC 2.0 MCP Endpoint (/mcp)
+// Gated by MASTER_API_KEY when configured: this endpoint drives the same tools as the
+// REST API and would otherwise bypass that key entirely.
+app.post(
+  '/mcp',
+  createRateLimiter({ windowMs: 60000, maxRequests: 300 }),
+  requireMasterKeyIfConfigured,
+  async (req, res) => {
+    const { id, method, params } = req.body || {};
+    try {
+      if (method === 'initialize') {
+        const mcpSessionId = crypto.randomUUID();
+        mcpHttpSessions.set(mcpSessionId, { state: createState(), lastSeen: Date.now() });
+        if (mcpHttpSessions.size > 500) sweepMcpHttpSessions();
+        res.setHeader('Mcp-Session-Id', mcpSessionId);
+        return res.json({
+          jsonrpc: '2.0',
+          id,
+          result: {
+            protocolVersion: (params && params.protocolVersion) || '2024-11-05',
+            capabilities: { tools: {} },
+            serverInfo: { name: 'agent-3d-topology-mcp-http', version: '4.0.0' }
+          }
+        });
+      }
+      if (method === 'tools/list') {
+        return res.json({ jsonrpc: '2.0', id, result: { tools: TOOLS } });
+      }
+      if (method === 'tools/call') {
+        const output = await handleToolCall(params.name, params.arguments || {}, getMcpHttpState(req));
+        return res.json({
+          jsonrpc: '2.0',
+          id,
+          result: { content: [{ type: 'text', text: JSON.stringify(output, null, 2) }] }
+        });
+      }
+      return res.json({ jsonrpc: '2.0', id, result: {} });
+    } catch (err) {
+      return res.json({
+        jsonrpc: '2.0',
+        id,
+        result: { isError: true, content: [{ type: 'text', text: `Error: ${err.message}` }] }
+      });
+    }
+  }
+);
 
 // Serve static files from public/
 const publicDir = path.join(__dirname, '..', 'public');
@@ -86,7 +154,18 @@ wss.on('connection', (ws, req) => {
 
   let session = sessionManager.getSession(sessionId);
   if (!session) {
-    // Auto-create a public session if someone visits a new custom room URL directly
+    if (!config.allowWsAutoCreate) {
+      // Creating a room from an unauthenticated WebSocket connect lets anyone mint
+      // sessions at will. With MAX_SESSIONS LRU eviction that is enough to flush every
+      // real room out of memory, so by default a viewer may only watch an existing room.
+      ws.send(JSON.stringify({
+        type: 'SESSION_NOT_FOUND',
+        error: 'No such 3D room. Ask an agent to create it first (POST /api/sessions or /api/push).'
+      }));
+      ws.close(4004, 'Session not found');
+      return;
+    }
+    // Opt-in: auto-create a public session when someone opens a new custom room URL.
     session = sessionManager.createSession({
       customId: sessionId || 'default',
       title: `3D Room #${sessionId || 'default'}`,

@@ -254,6 +254,18 @@
       let currentTab = 'mcp';
       const origin = window.location.origin;
 
+      // Session titles and ids are attacker-controlled (anything that can create a room
+      // picks them), so never interpolate them into innerHTML unescaped.
+      function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
       function renderTabs() {
         const el = document.getElementById('tabContent');
         if (currentTab === 'mcp') {
@@ -308,6 +320,10 @@ curl -X PATCH "${origin}/api/sessions/SES_ID/agents/worker_1" \\
         const listEl = document.getElementById('sessionsList');
         try {
           const res = await fetch('/api/sessions');
+          if (res.status === 401) {
+            listEl.innerHTML = `<div style="color:#94a3b8; font-size:12.5px; font-family:monospace; padding:12px;">🔒 Server này đã bật MASTER_API_KEY nên danh sách phiên không công khai. Hãy mở phòng bằng link <code>viewUrl</code> mà agent trả về.</div>`;
+            return;
+          }
           const data = await res.json();
           const sessions = data.sessions || [];
           if (sessions.length === 0) {
@@ -315,13 +331,14 @@ curl -X PATCH "${origin}/api/sessions/SES_ID/agents/worker_1" \\
             return;
           }
           listEl.innerHTML = sessions.map(s => {
-            const url = `/room/${encodeURIComponent(s.id)}${s.viewTokenHint ? '?token=' + encodeURIComponent(s.viewTokenHint) : ''}`;
+            // A publicView room needs no token; a private room prompts for one in the viewer.
+            const url = `/room/${encodeURIComponent(s.id)}`;
             return `
               <div class="session-item">
                 <div>
-                  <div style="font-weight:700; font-size:13.5px; color:#f8fafc;">${s.title}</div>
+                  <div style="font-weight:700; font-size:13.5px; color:#f8fafc;">${escapeHtml(s.title)}</div>
                   <div style="font-size:11px; color:#94a3b8; font-family:monospace; margin-top:3px;">
-                    ID: <code>${s.id}</code> • 👥 ${s.agentCount} Agents • 📊 ${s.totalProgress}%
+                    ID: <code>${escapeHtml(s.id)}</code> • 👥 ${escapeHtml(s.agentCount)} Agents • 📊 ${escapeHtml(s.totalProgress)}%
                   </div>
                 </div>
                 <a href="${url}" class="btn btn-emerald" style="padding:6px 12px; font-size:12px;">👁️ Mở 3D</a>
@@ -364,10 +381,10 @@ curl -X PATCH "${origin}/api/sessions/SES_ID/agents/worker_1" \\
         box.style.display = 'block';
         box.innerHTML = `
           <div style="margin-bottom:6px; color:#34d399; font-weight:700;">✅ Đã khởi tạo phiên thành công!</div>
-          <div>• <strong>Session ID:</strong> <code>${data.sessionId}</code></div>
-          <div>• <strong>Write AuthToken:</strong> <code>${data.authToken}</code></div>
+          <div>• <strong>Session ID:</strong> <code>${escapeHtml(data.sessionId)}</code></div>
+          <div>• <strong>Write AuthToken:</strong> <code>${escapeHtml(data.authToken)}</code></div>
           <div style="margin-top:8px;">
-            <a href="${data.viewUrl}" class="btn btn-primary" style="padding:6px 12px; font-size:12px;">🚀 Vào Phòng 3D Ngay</a>
+            <a href="${escapeHtml(data.viewUrl)}" class="btn btn-primary" style="padding:6px 12px; font-size:12px;">🚀 Vào Phòng 3D Ngay</a>
           </div>
         `;
         titleInput.value = '';

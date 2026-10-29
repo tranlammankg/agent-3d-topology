@@ -126,6 +126,8 @@ Add the following to your `mcp_config.json` or `claude_desktop_config.json`:
 ```
 *(If your server is hosted remotely or via Cloudflare Tunnel, set `AGENT_3D_URL` to `https://your-domain.com`. You can also connect directly to the Streamable HTTP MCP endpoint at `https://your-domain.com/mcp`).*
 
+> **Note on the HTTP `/mcp` endpoint:** when `MASTER_API_KEY` is configured, `/mcp` requires it too (`Authorization: Bearer <MASTER_API_KEY>`), because it drives the same tools as the REST API. The endpoint is also stateful per client: `initialize` returns an `Mcp-Session-Id` header that your client must echo on subsequent calls, so two clients never share a session. The STDIO transport is unaffected — it is one process per client.
+
 ### Available MCP Tools (with Stateful Auto-Session Context)
 The MCP server automatically remembers the active `sessionId` and `authToken`, so the LLM does not need to repeat tokens on every call:
 
@@ -352,8 +354,10 @@ requests.delete(f"{SERVER}/api/sessions/{session_id}/agents/researcher_1", heade
 | `PUBLIC_BASE_URL` | *(Tự nhận diện)* | Tên miền public (ví dụ `https://agents.domain.com`). Nếu để trống, Server tự động nhận diện từ Header truy cập. |
 | `MASTER_API_KEY` | *(Trống)* | Nếu đặt mật khẩu này, chỉ những ai có `MASTER_API_KEY` mới được tạo phòng mới (chống người lạ spam tạo phòng khi public). |
 | `REQUIRE_VIEW_TOKEN` | `true` | Yêu cầu phải có mã `?token=vt_...` trên URL mới được xem phòng 3D. |
+| `ALLOW_ANONYMOUS_PUSH` | `false` | Mặc định `false`: muốn cập nhật một phòng **đã tồn tại** qua `/api/push` thì phải kèm `authToken` của phòng đó. Chỉ đặt `true` trong mạng nội bộ tin cậy — khi đó bất kỳ ai biết `sessionId` đều ghi đè được phòng. |
 | `MAX_SESSIONS` | `200` | Số lượng phiên tối đa lưu trong bộ nhớ (tự động dọn phiên cũ nhất theo chuẩn LRU). |
 | `SESSION_TTL_HOURS` | `24` | Thời gian tự động dọn dẹp các phiên không hoạt động (giờ). |
+| `CORS_ALLOWED_ORIGINS` | `*` | Danh sách origin được phép gọi API, phân tách bằng dấu phẩy. Để `*` thì tiện cho agent gọi server-to-server, **nhưng** cũng có nghĩa là bất kỳ trang web nào bạn truy cập cũng gọi được server localhost và **đọc được phản hồi**. Đặt allowlist hoặc `none` khi server nằm trong tầm với của trình duyệt. |
 | `DEFAULT_LANG` | `vi` | Ngôn ngữ giao diện mặc định (`vi` hoặc `en`). |
 | `TUNNEL_TOKEN` | *(Trống)* | Token của Cloudflare Tunnel khi chạy `docker compose --profile tunnel up -d`. |
 
