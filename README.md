@@ -357,6 +357,7 @@ requests.delete(f"{SERVER}/api/sessions/{session_id}/agents/researcher_1", heade
 | `ALLOW_ANONYMOUS_PUSH` | `false` | Mặc định `false`: muốn cập nhật một phòng **đã tồn tại** qua `/api/push` thì phải kèm `authToken` của phòng đó. Chỉ đặt `true` trong mạng nội bộ tin cậy — khi đó bất kỳ ai biết `sessionId` đều ghi đè được phòng. |
 | `MAX_SESSIONS` | `200` | Số lượng phiên tối đa lưu trong bộ nhớ (tự động dọn phiên cũ nhất theo chuẩn LRU). |
 | `SESSION_TTL_HOURS` | `24` | Thời gian tự động dọn dẹp các phiên không hoạt động (giờ). |
+| `CORS_ALLOWED_ORIGINS` | `*` | Danh sách origin được phép gọi API, phân tách bằng dấu phẩy. Để `*` thì tiện cho agent gọi server-to-server, **nhưng** cũng có nghĩa là bất kỳ trang web nào bạn truy cập cũng gọi được server localhost và **đọc được phản hồi**. Đặt allowlist hoặc `none` khi server nằm trong tầm với của trình duyệt. |
 | `DEFAULT_LANG` | `vi` | Ngôn ngữ giao diện mặc định (`vi` hoặc `en`). |
 | `TUNNEL_TOKEN` | *(Trống)* | Token của Cloudflare Tunnel khi chạy `docker compose --profile tunnel up -d`. |
 

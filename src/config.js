@@ -41,6 +41,12 @@ const config = {
   maxAgentsPerSession: parseInt(process.env.MAX_AGENTS_PER_SESSION || '100', 10),
   dataDir: path.resolve(__dirname, '..', process.env.DATA_DIR || './data'),
   defaultLang: (process.env.DEFAULT_LANG || 'vi').toLowerCase(),
+  // "*" (default), "none", or a comma-separated list of allowed origins.
+  corsAllowedOrigins: (() => {
+    const raw = (process.env.CORS_ALLOWED_ORIGINS || '*').trim();
+    if (raw === '*' || raw.toLowerCase() === 'none') return raw.toLowerCase() === 'none' ? 'none' : '*';
+    return raw.split(',').map(o => o.trim().replace(/\/+$/, '')).filter(Boolean);
+  })(),
 
   /**
    * Automatically resolves the public base URL from config or incoming HTTP headers
